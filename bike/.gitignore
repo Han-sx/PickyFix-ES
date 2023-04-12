@@ -1,0 +1,6 @@
+#Ignore compilation artifacts
+obj
+bin
+
+#Ignore KAT results
+PQCkemKAT*
