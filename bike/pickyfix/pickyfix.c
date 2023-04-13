@@ -16,6 +16,15 @@
 #include "decode_internals.h"
 #include "pickyfix.h"
 
+// 对两个数组进行或操作
+// a = (a | b)
+_INLINE_ void
+array_or(IN OUT uint8_t *a, IN const uint8_t *b, IN const uint64_t bytelen) {
+    for (uint64_t i = 0; i < bytelen; i++) {
+        a[i] = a[i] | b[i];
+    }
+}
+
 // Function:  find_threshold_bucket
 // --------------------------------
 //
@@ -42,7 +51,7 @@
 //                             is increased by a factor of 8.)
 //
 _INLINE_ void
-find_threshold_bucket(OUT uint8_t *threshold_bucket,
+find_threshold_bucket(OUT uint8_t  *threshold_bucket,
                       OUT uint32_t *n_gt_threshold,
                       IN uint8_t    counts[],
                       IN uint32_t   n_flips) {
@@ -109,8 +118,8 @@ find_threshold_bucket(OUT uint8_t *threshold_bucket,
 //
 void
 get_fixflip_threshold(OUT fixflip_threshold_t *ff_threshold,
-                      IN fixflip_upc_t *ff_upc,
-                      IN uint32_t       n_flips) {
+                      IN fixflip_upc_t        *ff_upc,
+                      IN uint32_t              n_flips) {
 
     uint32_t base = 0;
 
@@ -154,29 +163,29 @@ get_fixflip_threshold(OUT fixflip_threshold_t *ff_threshold,
         // Move base to the start of the bucket where the threshold lives
         base += threshold_bucket * step;
 
-        #if defined(USE_RANDOMIZED_SELECTION_OF_EQ_THRESHOLD_BITS) && (N_FLIP_FLAGS_BLOCKS <= 4)
+#if defined(USE_RANDOMIZED_SELECTION_OF_EQ_THRESHOLD_BITS) && (N_FLIP_FLAGS_BLOCKS <= 4)
         // For levels 1 and 3, we can extract Ntau from the last buckets
-            if (i == COUNTING_LEVELS - 1) {
-                for (uint32_t k = 0; k < COUNTING_SORT_BUCKETS; k++) {
-                    uint32_t count = counts[k];
-                    uint32_t right_bucket = -secure_cmp32(k, threshold_bucket);
-                    ff_threshold->total_equal_threshold = (count & right_bucket) |
-                        (ff_threshold->total_equal_threshold & ~right_bucket);
-                }
+        if (i == COUNTING_LEVELS - 1) {
+            for (uint32_t k = 0; k < COUNTING_SORT_BUCKETS; k++) {
+                uint32_t count        = counts[k];
+                uint32_t right_bucket = -secure_cmp32(k, threshold_bucket);
+                ff_threshold->total_equal_threshold =
+                    (count & right_bucket) | (ff_threshold->total_equal_threshold & ~right_bucket);
             }
-        #endif
-
+        }
+#endif
     }
-    ff_threshold->threshold         = base;
+    ff_threshold->threshold = base;
 
 #if defined(USE_RANDOMIZED_SELECTION_OF_EQ_THRESHOLD_BITS)
 
-    #if (N_FLIP_FLAGS_BLOCKS > 4)
-        ff_threshold->total_equal_threshold = compute_total_equal_threshold(ff_upc, ff_threshold->threshold);
-    #endif
+#    if (N_FLIP_FLAGS_BLOCKS > 4)
+    ff_threshold->total_equal_threshold =
+        compute_total_equal_threshold(ff_upc, ff_threshold->threshold);
+#    endif
 
-    uint32_t lower_than_2kappa_mask = secure_l32_mask(N_FLIP_FLAGS_BLOCKS*64 - 1,
-                                                      ff_threshold->total_equal_threshold);
+    uint32_t lower_than_2kappa_mask =
+        secure_l32_mask(N_FLIP_FLAGS_BLOCKS * 64 - 1, ff_threshold->total_equal_threshold);
 
     ff_threshold->n_equal_threshold = (n_flips - n_gt_threshold) & lower_than_2kappa_mask;
 #else
@@ -184,9 +193,6 @@ get_fixflip_threshold(OUT fixflip_threshold_t *ff_threshold,
     ff_threshold->n_equal_threshold = n_flips - n_gt_threshold;
 
 #endif
-
-
-
 }
 
 // Function: fixflip_iter
@@ -207,11 +213,11 @@ get_fixflip_threshold(OUT fixflip_threshold_t *ff_threshold,
 //  - syndrome_t *syndrome: The recomputed syndrome for the new error vector `e`
 //
 ret_t
-fixflip_iter(OUT split_e_t *e,
-             OUT syndrome_t *  syndrome,
+fixflip_iter(OUT split_e_t    *e,
+             OUT syndrome_t   *syndrome,
              IN const uint32_t n_flips,
-             IN const ct_t *ct,
-             IN const sk_t *sk) {
+             IN const ct_t    *ct,
+             IN const sk_t    *sk) {
 
     fixflip_upc_t ff_upc;
     memset(&ff_upc, 0, sizeof(ff_upc));
@@ -250,12 +256,12 @@ fixflip_iter(OUT split_e_t *e,
 //  - syndrome_t *syndrome: The recomputed syndrome for the new error vector `e`
 //
 ret_t
-pickyflip_iter(OUT split_e_t *e,
-               IN syndrome_t *  syndrome,
-               IN const uint8_t threshold_in,
-               IN const uint8_t threshold_out,
-               IN const ct_t *ct,
-               IN const sk_t *sk) {
+pickyflip_iter(OUT split_e_t     *e,
+               IN OUT syndrome_t *syndrome,
+               IN const uint8_t   threshold_in,
+               IN const uint8_t   threshold_out,
+               IN const ct_t     *ct,
+               IN const sk_t     *sk) {
     DEFER_CLEANUP(syndrome_t rotated_syndrome = {0}, syndrome_cleanup);
     DEFER_CLEANUP(upc_t upc, upc_cleanup);
 
@@ -310,6 +316,44 @@ pickyflip_iter(OUT split_e_t *e,
     return SUCCESS;
 }
 
+// 新增函数，只用于寻找大于 th 的位置集合
+ret_t
+pickyflip_find_x_th(OUT split_e_t       *black_e,
+                    IN const syndrome_t *syndrome,
+                    IN const uint8_t     threshold,
+                    IN const sk_t       *sk) {
+    DEFER_CLEANUP(syndrome_t rotated_syndrome = {0}, syndrome_cleanup);
+    DEFER_CLEANUP(upc_t upc, upc_cleanup);
+
+    for (uint32_t i = 0; i < N0; i++) {
+        // UPC must start from zero at every iteration
+        memset(&upc, 0, sizeof(upc));
+
+        // 1) Right-rotate the syndrome for every secret key set bit index
+        //    Then slice-add it to the UPC array.
+        for (size_t j = 0; j < DV; j++) {
+            rotate_right(&rotated_syndrome, syndrome, sk->wlist[i].val[j]);
+            bit_sliced_adder(&upc, &rotated_syndrome, LOG2_MSB(j + 1));
+        }
+
+        // 2) Subtract the threshold from the UPC counters
+        bit_slice_full_subtract(&upc, threshold); // upc - threshold
+
+        // 3) Update the errors vector.
+        //    The last slice of the UPC array holds the MSB of the accumulated
+        //    values minus the threshold. Every zero bit indicates a potential
+        //    error bit.
+        const r_t *last_slice_out = &(upc.slice[SLICES - 1].u.r.val);
+        for (size_t j = 0; j < R_SIZE; j++) {
+            const uint8_t sum_msb = (~last_slice_out->raw[j]);
+            // 仅仅记录大于 th 的集合
+            black_e->val[i].raw[j] = sum_msb;
+        }
+    }
+
+    return SUCCESS;
+}
+
 // Function: decode_pickyfix
 // ------------------------
 //
@@ -334,25 +378,71 @@ pickyflip_iter(OUT split_e_t *e,
 //  - split_e_t *e: The error vector that will be recovered from the ciphertext
 //
 ret_t
-decode_pickyfix(OUT split_e_t *e,
+decode_pickyfix(OUT split_e_t       *e,
                 IN const syndrome_t *original_s,
-                IN const ct_t *ct,
-                IN const sk_t *sk) {
+                IN const ct_t       *ct,
+                IN const sk_t       *sk) {
     syndrome_t s;
 
+    // 新增求解集合
+    split_e_t x_collection = {0};
+    // 临时变量 s_tmp
+    syndrome_t s_tmp;
+    // 新增临时解集合
+    split_e_t x_collection_tmp = {0};
+
     memset(e, 0, sizeof(*e));
-    s = *original_s;
+    memset(&x_collection, 0, sizeof(x_collection));
+    s_tmp = *original_s;
+    s     = *original_s;
     dup(&s);
+    dup(&s_tmp);
 
     for (int i = 0; i < MAX_IT; i++) {
         if (i == 0) {
             GUARD(fixflip_iter(e, &s, FIXFLIP_HEAD_N_FLIPS, ct, sk));
+            // -----------------------------------------------------------------------------------------
+            // 增加可疑未知数的搜寻算法
+            GUARD(fixflip_iter(&x_collection, &s_tmp, FIND_X_COUNT, ct, sk));
+            // 获取大于 th 的集合, 合并两个数组
+            GUARD(pickyflip_find_x_th(&x_collection_tmp, &s, get_threshold(&s), sk));
+            for (uint8_t i_N0 = 0; i_N0 < N0; i_N0++) {
+                array_or((uint8_t *)&x_collection.val[i_N0].raw, x_collection_tmp.val[i_N0].raw, R_SIZE);
+            }
+            // -----------------------------------------------------------------------------------------
             GUARD(pickyflip_iter(e, &s, get_threshold(&s), (DV + 1) / 2, ct, sk));
+            // -----------------------------------------------------------------------------------------
+            // 获取大于 th 的集合, 合并两个数组
+            GUARD(pickyflip_find_x_th(&x_collection_tmp, &s, get_threshold(&s), sk));
+            for (uint8_t i_N0 = 0; i_N0 < N0; i_N0++) {
+                array_or((uint8_t *)&x_collection.val[i_N0].raw, x_collection_tmp.val[i_N0].raw, R_SIZE);
+            }
+            // -----------------------------------------------------------------------------------------
             GUARD(pickyflip_iter(e, &s, get_threshold(&s), (DV + 1) / 2, ct, sk));
         } else {
+            // -----------------------------------------------------------------------------------------
+            // 获取大于 th 的集合, 合并两个数组
+            GUARD(pickyflip_find_x_th(&x_collection_tmp, &s, get_threshold(&s), sk));
+            for (uint8_t i_N0 = 0; i_N0 < N0; i_N0++) {
+                array_or((uint8_t *)&x_collection.val[i_N0].raw, x_collection_tmp.val[i_N0].raw, R_SIZE);
+            }
+            // -----------------------------------------------------------------------------------------
             GUARD(pickyflip_iter(e, &s, get_threshold(&s), (DV + 1) / 2, ct, sk));
         }
     }
+
+    // 获取未知数的个数
+    uint32_t x_weight = r_bits_vector_weight((r_t *)x_collection.val[0].raw) +
+                        r_bits_vector_weight((r_t *)x_collection.val[1].raw);
+
+    printf("\n未知数个数: %u\n", x_weight);
+
+    // ===========================进行方程组求解算法===============================
+    // TODO 
+
+
+
+
     if (r_bits_vector_weight((r_t *)s.qw) > 0) {
         DMSG("    Weight of e: %lu\n",
              r_bits_vector_weight(&e->val[0]) + r_bits_vector_weight(&e->val[1]));
@@ -362,7 +452,6 @@ decode_pickyfix(OUT split_e_t *e,
 
     return SUCCESS;
 }
-
 
 #ifdef USE_RANDOMIZED_SELECTION_OF_EQ_THRESHOLD_BITS
 
@@ -378,13 +467,13 @@ secure_modulo_big_n(uint32_t ns[N_32_BIT_BLOCKS_FOR_RANDOM_BITS_FOR_FISHER_YATES
     for (uint32_t b = 0; b < N_32_BIT_BLOCKS_FOR_RANDOM_BITS_FOR_FISHER_YATES; b++) {
 
         for (uint32_t _i = 0; _i < 32; _i++) {
-            uint32_t i = 31 - _i;
-            r = r << 1;
+            uint32_t i   = 31 - _i;
+            r            = r << 1;
             uint32_t n_i = (ns[b] >> i) & 1;
             r &= ~1;
             r |= n_i;
 
-            uint32_t swap = secure_l32_mask(r, d);
+            uint32_t swap    = secure_l32_mask(r, d);
             uint32_t r_prime = r - d;
 
             r = (swap & r_prime) | (~swap & r);
@@ -395,16 +484,16 @@ secure_modulo_big_n(uint32_t ns[N_32_BIT_BLOCKS_FOR_RANDOM_BITS_FOR_FISHER_YATES
 }
 
 void
-init_eq_flip_flags(OUT uint64_t eq_flip_flags[N_FLIP_FLAGS_BLOCKS],
-                       IN fixflip_threshold_t *ff_threshold) {
+init_eq_flip_flags(OUT uint64_t            eq_flip_flags[N_FLIP_FLAGS_BLOCKS],
+                   IN fixflip_threshold_t *ff_threshold) {
 
     uint32_t weight = ff_threshold->n_equal_threshold;
 
     for (uint32_t i = 0; i < N_FLIP_FLAGS_BLOCKS; i++) {
         eq_flip_flags[i] = 0;
 
-        uint64_t mask_gt_64 = (1 + secure_l32_mask(weight, 64)) - 1ULL;
-        uint64_t mask_gt_0 = (1 + secure_l32_mask(weight, 1)) - 1ULL;
+        uint64_t mask_gt_64            = (1 + secure_l32_mask(weight, 64)) - 1ULL;
+        uint64_t mask_gt_0             = (1 + secure_l32_mask(weight, 1)) - 1ULL;
         uint64_t mask_between_0_and_64 = mask_gt_0 & ~mask_gt_64;
 
         uint64_t final_block_value = (0xffffffffffffffff) >> (64 - weight);
@@ -431,20 +520,20 @@ secure_get_random_index(uint32_t min, uint32_t max) {
     return (ret & valid_mask) | (min & ~valid_mask);
 }
 
-_INLINE_  void
+_INLINE_ void
 secure_swap_hiding_index2(uint64_t eq_flip_flags[N_FLIP_FLAGS_BLOCKS],
-                 uint32_t index1,
-                 uint32_t index2,
-                 uint64_t swap_flag) {
+                          uint32_t index1,
+                          uint32_t index2,
+                          uint64_t swap_flag) {
 
     // Remember that index1 does not need to be blinded
-    uint64_t b1 = index1 / 64;
-    uint64_t o1 = index1 % 64;
+    uint64_t b1   = index1 / 64;
+    uint64_t o1   = index1 % 64;
     uint64_t bit1 = (eq_flip_flags[b1] >> o1) & 1;
     eq_flip_flags[b1] &= ~((1ULL & swap_flag) << o1);
 
     // Now, we have to hide index2
-    uint64_t b2 = index2 >> 6; // b2 = index2 % 64
+    uint64_t b2 = index2 >> 6;        // b2 = index2 % 64
     uint64_t o2 = index2 - (b2 * 64); // index2 % 64
 
     uint64_t bit2 = 0;
@@ -453,24 +542,22 @@ secure_swap_hiding_index2(uint64_t eq_flip_flags[N_FLIP_FLAGS_BLOCKS],
         right_block_mask &= swap_flag;
 
         uint32_t bit = (eq_flip_flags[b2] >> o2) & 1;
-        bit2 = (bit  & right_block_mask) | (bit2 & ~right_block_mask);
+        bit2         = (bit & right_block_mask) | (bit2 & ~right_block_mask);
 
-        eq_flip_flags[b2] &= (~(1ULL << o2) & right_block_mask) |
-                                 (~right_block_mask);
+        eq_flip_flags[b2] &= (~(1ULL << o2) & right_block_mask) | (~right_block_mask);
 
         eq_flip_flags[b2] |= ((bit1 << o2) & right_block_mask);
-
     }
     eq_flip_flags[b1] |= (bit2 & swap_flag) << o1;
 }
 
 void
-secure_shuffle_eq_flip_flags(OUT uint64_t eq_flip_flags[N_FLIP_FLAGS_BLOCKS],
+secure_shuffle_eq_flip_flags(OUT uint64_t            eq_flip_flags[N_FLIP_FLAGS_BLOCKS],
                              IN fixflip_threshold_t *ff_threshold,
-                             IN uint32_t total_upc_counters_eq_threshold) {
+                             IN uint32_t             total_upc_counters_eq_threshold) {
 
     for (uint32_t i = 0; i < FIXFLIP_HEAD_N_FLIPS; i++) {
-        uint32_t random = secure_get_random_index(i, total_upc_counters_eq_threshold);
+        uint32_t random    = secure_get_random_index(i, total_upc_counters_eq_threshold);
         uint64_t swap_flag = (1 + secure_l32_mask(ff_threshold->n_equal_threshold, i)) - 1UL;
         secure_swap_hiding_index2(eq_flip_flags, i, random, swap_flag);
     }
