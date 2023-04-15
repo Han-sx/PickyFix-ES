@@ -76,6 +76,12 @@ fixflip_iter(OUT split_e_t *e,
              IN const sk_t *sk);
 
 ret_t
+fixflip_th(OUT fixflip_threshold_t *fixflip_threshold,
+             IN const syndrome_t   *syndrome,
+             IN const uint32_t n_flips,
+             IN const sk_t    *sk);
+
+ret_t
 pickyflip_iter(OUT split_e_t *e,
                IN OUT syndrome_t *  syndrome,
                IN const uint8_t threshold_in,
@@ -85,6 +91,9 @@ pickyflip_iter(OUT split_e_t *e,
 
 uint32_t
 flip_worst_fit_indexes(OUT split_e_t *e, IN fixflip_upc_t *ff_upc, IN uint32_t n);
+
+void
+fixflip_find_th(IN OUT fixflip_threshold_t *fixflip_threshold, IN fixflip_upc_t *ff_upc, IN uint32_t n_flips);
 
 void
 get_upc(OUT fixflip_upc_t *ff_upc,

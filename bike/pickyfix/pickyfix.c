@@ -22,7 +22,10 @@
 #define EQ_COLUMN  21
 
 // 使用高斯求解还是 m4ri 求解， 0 使用高斯，1 使用 m4ri
-#define GUSS_OR_M4RI 0
+#define GUSS_OR_M4RI 1
+// 定义 th 下降额度
+#define DELTA_STEP_1 0
+#define DELTA_STEP_REMAIN 0
 
 // 用于交换两个数组
 _INLINE_ void
@@ -326,6 +329,21 @@ fixflip_iter(OUT split_e_t    *e,
     return SUCCESS;
 }
 
+ret_t
+fixflip_th(OUT fixflip_threshold_t *fixflip_threshold,
+             IN const syndrome_t   *syndrome,
+             IN const uint32_t n_flips,
+             IN const sk_t    *sk) {
+
+    fixflip_upc_t ff_upc;
+    memset(&ff_upc, 0, sizeof(ff_upc));
+
+    get_upc(&ff_upc, syndrome, sk->wlist);
+    fixflip_find_th(fixflip_threshold, &ff_upc, n_flips);
+
+    return SUCCESS;
+}
+
 // Function: pickyflip_iter
 // ----------------------
 //
@@ -498,8 +516,13 @@ decode_pickyfix(OUT split_e_t       *e,
         if (i == 0) {
             GUARD(fixflip_iter(e, &s, FIXFLIP_HEAD_N_FLIPS, ct, sk));
             // -----------------------------------------------------------------------------------------
-            // 增加可疑未知数的搜寻算法
-            GUARD(fixflip_iter(&x_collection, &s_tmp, FIND_X_COUNT, ct, sk));
+            // 获取 fixflip_iter 的 th
+            fixflip_threshold_t fixflip_threshold = {0};
+            GUARD(fixflip_th(&fixflip_threshold, &s_tmp, FIXFLIP_HEAD_N_FLIPS, sk));
+            // 输出第一轮中 fixflip 给出的 th 大小
+            printf("\nth 的大小: %u\n", fixflip_threshold.threshold);
+            // 基于 fixflip 的 th 进行搜寻可能错误位置
+            GUARD(pickyflip_find_x_th(&x_collection, &s_tmp, fixflip_threshold.threshold - DELTA_STEP_1, sk));
             // 判断 e 和 x_collection 是否相等---test---
             split_e_t test_e = {0};
             // 与一下 e 和 x_collection
@@ -518,11 +541,11 @@ decode_pickyfix(OUT split_e_t       *e,
             // 获取测试的个数
             uint32_t x_test_weight = r_bits_vector_weight((r_t *)x_collection.val[0].raw) +
                                      r_bits_vector_weight((r_t *)x_collection.val[1].raw);
-            printf("\n\n第一轮第一步测试 与 个数: %u, e的个数: %u , x 个数: %u \n", test_weight,
+            printf("\n第一轮第一步我们的集合和 pickyfix 与的个数: %u, e 的个数: %u , x 个数: %u \n", test_weight,
                    e_test_weight, x_test_weight);
 
             // 获取大于 th 的集合, 合并两个数组
-            GUARD(pickyflip_find_x_th(&x_collection_tmp, &s, get_threshold(&s), sk));
+            GUARD(pickyflip_find_x_th(&x_collection_tmp, &s, get_threshold(&s) - DELTA_STEP_REMAIN, sk));
             for (uint8_t i_N0 = 0; i_N0 < N0; i_N0++) {
                 array_or((uint8_t *)&x_collection.val[i_N0].raw, x_collection_tmp.val[i_N0].raw,
                          R_SIZE);
@@ -531,7 +554,7 @@ decode_pickyfix(OUT split_e_t       *e,
             GUARD(pickyflip_iter(e, &s, get_threshold(&s), (DV + 1) / 2, ct, sk));
             // -----------------------------------------------------------------------------------------
             // 获取大于 th 的集合, 合并两个数组
-            GUARD(pickyflip_find_x_th(&x_collection_tmp, &s, get_threshold(&s), sk));
+            GUARD(pickyflip_find_x_th(&x_collection_tmp, &s, get_threshold(&s) - DELTA_STEP_REMAIN, sk));
             for (uint8_t i_N0 = 0; i_N0 < N0; i_N0++) {
                 array_or((uint8_t *)&x_collection.val[i_N0].raw, x_collection_tmp.val[i_N0].raw,
                          R_SIZE);
@@ -541,7 +564,7 @@ decode_pickyfix(OUT split_e_t       *e,
         } else {
             // -----------------------------------------------------------------------------------------
             // 获取大于 th 的集合, 合并两个数组
-            GUARD(pickyflip_find_x_th(&x_collection_tmp, &s, get_threshold(&s), sk));
+            GUARD(pickyflip_find_x_th(&x_collection_tmp, &s, get_threshold(&s) - DELTA_STEP_REMAIN, sk));
             for (uint8_t i_N0 = 0; i_N0 < N0; i_N0++) {
                 array_or((uint8_t *)&x_collection.val[i_N0].raw, x_collection_tmp.val[i_N0].raw,
                          R_SIZE);
