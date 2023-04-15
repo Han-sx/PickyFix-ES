@@ -152,10 +152,10 @@ main(int argc, char *argv[]) {
             if ((i % 1000) == 0) {
 #ifdef TEST_BGF
                 fprintf(stderr, BG_OR_BGF ",%d,%d,%d,%d,%d,%d,thread%d\n", MAX_IT, LEVEL, R_BITS,
-                        T1, nerrors_bgf, i, i_thread);
+                        T1_BIKE, nerrors_bgf, i, i_thread);
 #endif
 #ifdef TEST_PICKYFIX
-                fprintf(stderr, "PickyFix,%d,%d,%d,%d,%d,%d,thread%d\n", MAX_IT, LEVEL, R_BITS, T1,
+                fprintf(stderr, "PickyFix,%d,%d,%d,%d,%d,%d,thread%d\n", MAX_IT, LEVEL, R_BITS, T1_BIKE,
                         nerrors_pickyfix, i, i_thread);
 
 #endif
@@ -171,10 +171,10 @@ main(int argc, char *argv[]) {
 
     // decoder,n_iterations,level,r_bits,n_failures,n_tests
 #ifdef TEST_BGF
-    printf(BG_OR_BGF ",%d,%d,%d,%d,%d,%d\n", MAX_IT, LEVEL, R_BITS, T1, final_nerrors_bgf, ntests);
+    printf(BG_OR_BGF ",%d,%d,%d,%d,%d,%d\n", MAX_IT, LEVEL, R_BITS, T1_BIKE, final_nerrors_bgf, ntests);
 #endif
 #ifdef TEST_PICKYFIX
-    printf("PickyFix,%d,%d,%d,%d,%d,%d\n", MAX_IT, LEVEL, R_BITS, T1, final_nerrors_pickyfix,
+    printf("PickyFix,%d,%d,%d,%d,%d,%d\n", MAX_IT, LEVEL, R_BITS, T1_BIKE, final_nerrors_pickyfix,
            ntests);
 #endif
 

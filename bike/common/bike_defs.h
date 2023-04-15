@@ -39,8 +39,8 @@
 
 #    define DV 137
 
-#    ifndef T1
-#        define T1 264
+#    ifndef T1_BIKE
+#        define T1_BIKE 264
 #    endif
 
 #    define THRESHOLD_COEFF0      17.8785
@@ -57,8 +57,8 @@
 
 #    define DV 103
 
-#    ifndef T1
-#        define T1 199
+#    ifndef T1_BIKE
+#        define T1_BIKE 199
 #    endif
 
 #    define THRESHOLD_COEFF0      15.2588
@@ -76,8 +76,8 @@
 
 #    define DV 71
 
-#    ifndef T1
-#        define T1 134
+#    ifndef T1_BIKE
+#        define T1_BIKE 134
 #    endif
 
 #    define THRESHOLD_COEFF0      13.530

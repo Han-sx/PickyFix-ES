@@ -177,7 +177,7 @@ main(int argc, char *argv[]) {
                SUCCESS);
 
         for (int k = 0; k < DV + 1; k++) {
-            printf("%d,%d,%d,%d,%d,%d,%d\n", LEVEL, R_BITS, T1, i, k, counters_right[k],
+            printf("%d,%d,%d,%d,%d,%d,%d\n", LEVEL, R_BITS, T1_BIKE, i, k, counters_right[k],
                    counters_wrong[k]);
         }
     }

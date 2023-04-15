@@ -39,7 +39,7 @@ EXPERIMENTS_TGT := $(patsubst experiments/%.c, %, $(EXPERIMENTS_SRC))
 all: $(EXPERIMENTS_TGT)
 
 $(EXPERIMENTS_TGT): $(EXPERIMENTS_SRC) $(BIN_DIR) $(OBJ_FILES) $(SUB_DIRS)
-	$(CC) $(OBJS) $(CFLAGS) $(EXTERNAL_LIBS) experiments/$@.c -o $(BIN_DIR)/$@
+	$(CC) $(OBJS) $(CFLAGS) $(EXTERNAL_LIBS) experiments/$@.c -o $(BIN_DIR)/$@ -lm4ri
 
 $(SUB_DIRS):
 	make -C $@

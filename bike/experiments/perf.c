@@ -43,6 +43,8 @@
 
 int
 main(int argc, char *argv[]) {
+    // 使用随机数
+    srand(time(NULL));
 
     int hide_header = 0;
     if (argc > 1) {

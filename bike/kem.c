@@ -111,7 +111,7 @@ function_h(OUT split_e_t *splitted_e, IN const r_t *in0, IN const r_t *in1) {
     DEFER_CLEANUP(padded_e_t e, padded_e_cleanup);
     DEFER_CLEANUP(compressed_idx_t_t dummy, compressed_idx_t_cleanup);
 
-    GUARD(generate_sparse_rep((uint64_t *)&e, dummy.val, T1, N_BITS, sizeof(e), &prf_state));
+    GUARD(generate_sparse_rep((uint64_t *)&e, dummy.val, T1_BIKE, N_BITS, sizeof(e), &prf_state));
     split_e(splitted_e, &e.val);
 
     return SUCCESS;
@@ -335,7 +335,7 @@ crypto_kem_dec_pickyfix(OUT unsigned char *     ss,
     volatile uint32_t success_cond;
     success_cond = dec_ret;
     success_cond &=
-        secure_cmp32(T1, r_bits_vector_weight(&e.val[0]) + r_bits_vector_weight(&e.val[1]));
+        secure_cmp32(T1_BIKE, r_bits_vector_weight(&e.val[0]) + r_bits_vector_weight(&e.val[1]));
     success_cond &= secure_cmp((uint8_t *)&e, (uint8_t *)&e2, sizeof(e));
 
     ss_t ss_succ = {0};
@@ -382,7 +382,7 @@ crypto_kem_dec_bgf(OUT unsigned char *ss, IN const unsigned char *ct, IN const u
     volatile uint32_t success_cond;
     success_cond = dec_ret;
     success_cond &=
-        secure_cmp32(T1, r_bits_vector_weight(&e.val[0]) + r_bits_vector_weight(&e.val[1]));
+        secure_cmp32(T1_BIKE, r_bits_vector_weight(&e.val[0]) + r_bits_vector_weight(&e.val[1]));
     success_cond &= secure_cmp((uint8_t *)&e, (uint8_t *)&e2, sizeof(e));
 
     ss_t ss_succ = {0};

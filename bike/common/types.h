@@ -68,7 +68,7 @@ typedef struct compressed_idx_dv_s {
 typedef compressed_idx_dv_t compressed_idx_dv_ar_t[N0];
 
 typedef struct compressed_idx_t_t {
-    idx_t val[T1];
+    idx_t val[T1_BIKE];
 } compressed_idx_t_t;
 
 // The secret key holds both representation for avoiding

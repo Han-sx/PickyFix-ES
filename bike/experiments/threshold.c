@@ -70,7 +70,7 @@ pickyfix_partial_decode_thresholds(OUT split_e_t *e,
     s = *original_s;
     dup(&s);
 
-    printf("%d,%d,%d,pickyfix,%d,", LEVEL, R_BITS, T1, MAX_IT);
+    printf("%d,%d,%d,pickyfix,%d,", LEVEL, R_BITS, T1_BIKE, MAX_IT);
     for (int i = 0; i < MAX_IT; i++) {
         if (i == 0) {
             GUARD(fixflip_iter(e, &s, FIXFLIP_HEAD_N_FLIPS, ct, sk));
@@ -107,7 +107,7 @@ bgf_partial_decode_thresholds(OUT split_e_t *e,
     s = *original_s;
     dup(&s);
 
-    printf("%d,%d,%d,BGF,%d,", LEVEL, R_BITS, T1, MAX_IT);
+    printf("%d,%d,%d,BGF,%d,", LEVEL, R_BITS, T1_BIKE, MAX_IT);
 
     for (int i = 0; i < MAX_IT; i++) {
 
@@ -154,7 +154,7 @@ show_thresholds() {
 
     syndrome_t syndrome = {0};
 
-    res = get_challenge(&e, &syndrome, ct, k_enc, sk, pk, T1);
+    res = get_challenge(&e, &syndrome, ct, k_enc, sk, pk, T1_BIKE);
 
     const sk_t *l_sk = (const sk_t *)sk;
     const ct_t *l_ct = (const ct_t *)ct;
