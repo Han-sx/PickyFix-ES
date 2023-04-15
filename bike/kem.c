@@ -26,6 +26,9 @@
 
 #include "pickyfix.h"
 
+// 定义全局变量,用于测试是否包括所有错误位置
+split_e_t R_e = {0};
+
 _INLINE_ void
 split_e(OUT split_e_t *splitted_e, IN const e_t *e) {
     // Copy lower bytes (e0)
@@ -118,7 +121,11 @@ function_h(OUT split_e_t *splitted_e, IN const r_t *in0, IN const r_t *in1) {
 }
 
 _INLINE_ ret_t
-encrypt(OUT ct_t *ct, OUT split_e_t *mf, IN const pk_t *pk, IN const seed_t *seed) {
+encrypt(OUT split_e_t   *e_out,
+        OUT ct_t        *ct,
+        OUT split_e_t   *mf,
+        IN const pk_t   *pk,
+        IN const seed_t *seed) {
     DEFER_CLEANUP(padded_r_t m = {0}, padded_r_cleanup);
 
     DMSG("    Sampling m.\n");
@@ -154,8 +161,10 @@ encrypt(OUT ct_t *ct, OUT split_e_t *mf, IN const pk_t *pk, IN const seed_t *see
     ct->val[1] = p_ct[1].val;
 
     // Copy the internal mf to the output parameters.
-    mf->val[0] = mf_int[0].val;
-    mf->val[1] = mf_int[1].val;
+    mf->val[0]    = mf_int[0].val;
+    mf->val[1]    = mf_int[1].val;
+    e_out->val[0] = splitted_e.val[0];
+    e_out->val[1] = splitted_e.val[1];
 
     print("e0: ", (uint64_t *)splitted_e.val[0].raw, R_BITS);
     print("e1: ", (uint64_t *)splitted_e.val[1].raw, R_BITS);
@@ -277,8 +286,8 @@ crypto_kem_enc(OUT unsigned char *ct, OUT unsigned char *ss, IN const unsigned c
 
     // Convert to the types that are used by this implementation
     const pk_t *l_pk = (const pk_t *)pk;
-    ct_t *      l_ct = (ct_t *)ct;
-    ss_t *      l_ss = (ss_t *)ss;
+    ct_t       *l_ct = (ct_t *)ct;
+    ss_t       *l_ss = (ss_t *)ss;
 
     // For NIST DRBG_CTR
     DEFER_CLEANUP(seeds_t seeds = {0}, seeds_cleanup);
@@ -291,7 +300,7 @@ crypto_kem_enc(OUT unsigned char *ct, OUT unsigned char *ss, IN const unsigned c
     // Here, we stay consistent with BIKE's reference code
     // that chooses the seconde seed.
     DEFER_CLEANUP(split_e_t mf, split_e_cleanup);
-    GUARD(encrypt(l_ct, &mf, l_pk, &seeds.seed[1]));
+    GUARD(encrypt(&R_e, l_ct, &mf, l_pk, &seeds.seed[1]));
 
     DMSG("    Generating shared secret.\n");
     get_ss(l_ss, &mf.val[0], &mf.val[1], l_ct);
@@ -305,7 +314,7 @@ crypto_kem_enc(OUT unsigned char *ct, OUT unsigned char *ss, IN const unsigned c
 //               sk is the private key,
 //               ss is the shared secret
 int
-crypto_kem_dec_pickyfix(OUT unsigned char *     ss,
+crypto_kem_dec_pickyfix(OUT unsigned char      *ss,
                         IN const unsigned char *ct,
                         IN const unsigned char *sk) {
     DMSG("  Enter crypto_kem_dec.\n");
@@ -313,7 +322,7 @@ crypto_kem_dec_pickyfix(OUT unsigned char *     ss,
     // Convert to the types used by this implementation
     const sk_t *l_sk = (const sk_t *)sk;
     const ct_t *l_ct = (const ct_t *)ct;
-    ss_t *      l_ss = (ss_t *)ss;
+    ss_t       *l_ss = (ss_t *)ss;
 
     // Force zero initialization.
     DEFER_CLEANUP(syndrome_t syndrome = {0}, syndrome_cleanup);
@@ -323,7 +332,7 @@ crypto_kem_dec_pickyfix(OUT unsigned char *     ss,
     GUARD(compute_syndrome(&syndrome, l_ct, l_sk));
 
     DMSG("  Decoding.\n");
-    uint32_t dec_ret = decode_pickyfix(&e, &syndrome, l_ct, l_sk) != SUCCESS ? 0 : 1;
+    uint32_t dec_ret = decode_pickyfix(&e, &R_e, &syndrome, l_ct, l_sk) != SUCCESS ? 0 : 1;
 
     DEFER_CLEANUP(split_e_t e2, split_e_cleanup);
     DEFER_CLEANUP(pad_ct_t ce, pad_ct_cleanup);
@@ -360,7 +369,7 @@ crypto_kem_dec_bgf(OUT unsigned char *ss, IN const unsigned char *ct, IN const u
     // Convert to the types used by this implementation
     const sk_t *l_sk = (const sk_t *)sk;
     const ct_t *l_ct = (const ct_t *)ct;
-    ss_t *      l_ss = (ss_t *)ss;
+    ss_t       *l_ss = (ss_t *)ss;
 
     // Force zero initialization.
     DEFER_CLEANUP(syndrome_t syndrome = {0}, syndrome_cleanup);
@@ -395,6 +404,9 @@ crypto_kem_dec_bgf(OUT unsigned char *ss, IN const unsigned char *ct, IN const u
     for (uint32_t i = 0; i < sizeof(*l_ss); i++) {
         l_ss->raw[i] = (mask & ss_succ.raw[i]) | (~mask & ss_fail.raw[i]);
     }
+
+    // 将全局变量重置为 0
+    memset((uint8_t *)&R_e, 0, sizeof(split_e_t));
 
     DMSG("  Exit crypto_kem_dec.\n");
     return SUCCESS;

@@ -128,4 +128,10 @@ typedef struct upc_s {
     upc_slice_t slice[SLICES];
 } upc_t;
 
+// 封装 upc_0 和 upc_1
+typedef struct upc_all_s
+{
+  upc_t val[N0];
+} upc_all_t;
+
 #pragma pack(pop)

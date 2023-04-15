@@ -15,7 +15,7 @@
 // That is, you should define USE_RANDOMIZED_SELECTION_OF_EQ_THRESHOLD_BITS
 // except when testing for extrapolation purposes.
 #ifndef USE_UNSAFE_CODE_FOR_EXTRAPOLATION
-    #define USE_RANDOMIZED_SELECTION_OF_EQ_THRESHOLD_BITS
+#    define USE_RANDOMIZED_SELECTION_OF_EQ_THRESHOLD_BITS
 #endif
 
 // Notice that this function is significantly different from LOG2_MSB from
@@ -50,50 +50,57 @@
 #    error
 #endif
 
-
 typedef struct fixflip_threshold_s {
-    uint8_t threshold;
-    uint8_t n_equal_threshold;
+    uint8_t  threshold;
+    uint8_t  n_equal_threshold;
     uint32_t total_equal_threshold;
 } fixflip_threshold_t;
 
-ALIGN(64) typedef struct fixflip_upc_s { uint8_t blocks[N0][R_QW * 64]; } fixflip_upc_t;
+ALIGN(64) typedef struct fixflip_upc_s {
+    uint8_t blocks[N0][R_QW * 64];
+} fixflip_upc_t;
 
 ret_t
-decode_pickyfix(OUT split_e_t *e,
+decode_pickyfix(OUT split_e_t       *e,
+                IN const split_e_t  *R_e,
                 IN const syndrome_t *original_s,
-                IN const ct_t *ct,
-                IN const sk_t *sk);
+                IN const ct_t       *ct,
+                IN const sk_t       *sk);
 
 ret_t
-fixflip_iter(OUT split_e_t *e,
-             OUT syndrome_t *  syndrome,
+fixflip_iter(OUT split_e_t    *e,
+             OUT syndrome_t   *syndrome,
              IN const uint32_t n_flips,
-             IN const ct_t *ct,
-             IN const sk_t *sk);
+             IN const ct_t    *ct,
+             IN const sk_t    *sk);
 
 ret_t
-pickyflip_iter(OUT split_e_t *e,
-               IN syndrome_t *  syndrome,
+pickyflip_iter(OUT split_e_t   *e,
+               IN syndrome_t   *syndrome,
                IN const uint8_t threshold_in,
                IN const uint8_t threshold_out,
-               IN const ct_t *ct,
-               IN const sk_t *sk);
+               IN const ct_t   *ct,
+               IN const sk_t   *sk);
 
 uint32_t
 flip_worst_fit_indexes(OUT split_e_t *e, IN fixflip_upc_t *ff_upc, IN uint32_t n);
 
 void
-get_upc(OUT fixflip_upc_t *ff_upc,
-        IN const syndrome_t *           syndrome,
+fixflip_find_th(IN OUT fixflip_threshold_t *fixflip_threshold,
+                IN fixflip_upc_t           *ff_upc,
+                IN uint32_t                 n_flips);
+
+void
+get_upc(OUT fixflip_upc_t              *ff_upc,
+        IN const syndrome_t            *syndrome,
         IN const compressed_idx_dv_ar_t wlist);
 
 ret_t
-get_separate_counters(OUT int counters_right[],
-                      OUT int counters_wrong[],
-                      IN split_e_t *true_error,
+get_separate_counters(OUT int              counters_right[],
+                      OUT int              counters_wrong[],
+                      IN split_e_t        *true_error,
                       IN const syndrome_t *original_s,
-                      IN const sk_t *sk);
+                      IN const sk_t       *sk);
 
 _INLINE_ uint8_t
 upc_for_index(fixflip_upc_t *ff_upc, uint32_t index) {
@@ -127,54 +134,51 @@ compress_e(OUT split_e_t *e, IN uint8_t e_decomp[]) {
 }
 
 void
-reduce_upcs_then_count(OUT uint8_t *sc,
+reduce_upcs_then_count(OUT uint8_t      *sc,
                        IN fixflip_upc_t *ff_upc,
                        IN uint32_t       base,
                        IN uint32_t       step);
 
 void
 get_fixflip_threshold(OUT fixflip_threshold_t *ff_threshold,
-                      IN fixflip_upc_t *ff_upc,
-                      IN uint32_t       n_flips);
-
+                      IN fixflip_upc_t        *ff_upc,
+                      IN uint32_t              n_flips);
 
 #ifdef USE_RANDOMIZED_SELECTION_OF_EQ_THRESHOLD_BITS
 
-#if (LEVEL == 1)
+#    if (LEVEL == 1)
 
-#define N_FLIP_FLAGS_BLOCKS 3 // ceil(146 / 64)
-#define N_RANDOM_BITS_FOR_FISHER_YATES 128
+#        define N_FLIP_FLAGS_BLOCKS            3 // ceil(146 / 64)
+#        define N_RANDOM_BITS_FOR_FISHER_YATES 128
 
-#elif (LEVEL == 3)
+#    elif (LEVEL == 3)
 
-#define N_FLIP_FLAGS_BLOCKS 4 // ceil(206 / 64)
-#define N_RANDOM_BITS_FOR_FISHER_YATES 192
+#        define N_FLIP_FLAGS_BLOCKS            4 // ceil(206 / 64)
+#        define N_RANDOM_BITS_FOR_FISHER_YATES 192
 
-#elif (LEVEL == 5)
+#    elif (LEVEL == 5)
 
-#define N_FLIP_FLAGS_BLOCKS 5 // ceil(260 / 64)
-#define N_RANDOM_BITS_FOR_FISHER_YATES 256
+#        define N_FLIP_FLAGS_BLOCKS            5 // ceil(260 / 64)
+#        define N_RANDOM_BITS_FOR_FISHER_YATES 256
 
-#if N_FLIP_FLAGS_BLOCKS > 4
-uint32_t compute_total_equal_threshold(fixflip_upc_t *ff_upc, uint8_t threshold);
-#endif
+#        if N_FLIP_FLAGS_BLOCKS > 4
+uint32_t
+compute_total_equal_threshold(fixflip_upc_t *ff_upc, uint8_t threshold);
+#        endif
 
-#else
-#    error
-#endif
+#    else
+#        error
+#    endif
 
-
-
-#define N_32_BIT_BLOCKS_FOR_RANDOM_BITS_FOR_FISHER_YATES (N_RANDOM_BITS_FOR_FISHER_YATES / 32)
-
-void
-init_eq_flip_flags(OUT uint64_t eq_flip_flags[N_FLIP_FLAGS_BLOCKS],
-                       IN fixflip_threshold_t *ff_threshold);
+#    define N_32_BIT_BLOCKS_FOR_RANDOM_BITS_FOR_FISHER_YATES (N_RANDOM_BITS_FOR_FISHER_YATES / 32)
 
 void
-secure_shuffle_eq_flip_flags(OUT uint64_t eq_flip_flags[N_FLIP_FLAGS_BLOCKS],
+init_eq_flip_flags(OUT uint64_t            eq_flip_flags[N_FLIP_FLAGS_BLOCKS],
+                   IN fixflip_threshold_t *ff_threshold);
+
+void
+secure_shuffle_eq_flip_flags(OUT uint64_t            eq_flip_flags[N_FLIP_FLAGS_BLOCKS],
                              IN fixflip_threshold_t *ff_threshold,
-                             IN uint32_t total_upc_counters_eq_threshold);
-
+                             IN uint32_t             total_upc_counters_eq_threshold);
 
 #endif

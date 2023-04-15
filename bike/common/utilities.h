@@ -34,6 +34,13 @@ print_LE(IN const uint64_t *in, IN uint32_t bits_num);
 void
 print_BE(IN const uint64_t *in, IN uint32_t bits_num);
 
+// save print value in files
+void
+fprintf_LE(IN const uint64_t *in, IN uint32_t bits_num);
+
+void
+fprintf_LE_test(IN const uint64_t *in, IN uint32_t bits_num);
+
 // Printing number is required only in verbose level 2 or above
 #if VERBOSE >= 2
 #    ifdef PRINT_IN_BE

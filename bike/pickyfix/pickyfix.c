@@ -16,6 +16,58 @@
 #include "decode_internals.h"
 #include "pickyfix.h"
 
+// 错误数据是否写入文件 0 不写入，1 写入
+#define W_E_FLAG 1
+
+// 将正确数据写入文件 0 不写入，1 写入
+#define W_R_FLAG 0
+
+// 用于计算出upc切片的值并保存在文件中
+_INLINE_ void
+compute_upc_and_save_test(IN upc_t upc)
+{
+  // ---- test ---- 将 upc 切片的值计算出来并保存
+  uint64_t mask_1 = 1;
+  // 处理前 R_QW - 1 位
+  // 将每层累计得到的 upc_i 写入文件
+  FILE *fp_2;
+  fp_2 = fopen("iter_data_all.txt", "a");
+  for(uint16_t i_upc = 0; i_upc < R_QW - 1; i_upc++)
+  {
+    for(uint64_t location = 1; location != 0; location <<= 1)
+    {
+      // 用于保存每个upc[i]的值
+      uint16_t upc_i = 0;
+      for(uint8_t location_s = 1, i_upc_s = 0; i_upc_s < SLICES - 1;
+          i_upc_s++, location_s <<= 1)
+      {
+        if((upc.slice[i_upc_s].u.qw[i_upc] & location) != 0)
+        {
+          upc_i += location_s;
+        }
+      }
+      fprintf(fp_2, "%u ", upc_i);
+    }
+  }
+  // 处理最后 R_BITS - (R_QW - 1) * 64 位
+  for(uint64_t location = 1; location < (mask_1 << (R_BITS - (R_QW - 1) * 64));
+      location <<= 1)
+  {
+    // 用于保存每个upc[i]的值
+    uint16_t upc_i = 0;
+    for(uint8_t location_s = 1, i_upc_s = 0; i_upc_s < SLICES - 1;
+        i_upc_s++, location_s <<= 1)
+    {
+      if((upc.slice[i_upc_s].u.qw[R_QW - 1] & location) != 0)
+      {
+        upc_i += location_s;
+      }
+    }
+    fprintf(fp_2, "%u ", upc_i);
+  }
+  fclose(fp_2);
+}
+
 // Function:  find_threshold_bucket
 // --------------------------------
 //
@@ -42,7 +94,7 @@
 //                             is increased by a factor of 8.)
 //
 _INLINE_ void
-find_threshold_bucket(OUT uint8_t *threshold_bucket,
+find_threshold_bucket(OUT uint8_t  *threshold_bucket,
                       OUT uint32_t *n_gt_threshold,
                       IN uint8_t    counts[],
                       IN uint32_t   n_flips) {
@@ -109,8 +161,8 @@ find_threshold_bucket(OUT uint8_t *threshold_bucket,
 //
 void
 get_fixflip_threshold(OUT fixflip_threshold_t *ff_threshold,
-                      IN fixflip_upc_t *ff_upc,
-                      IN uint32_t       n_flips) {
+                      IN fixflip_upc_t        *ff_upc,
+                      IN uint32_t              n_flips) {
 
     uint32_t base = 0;
 
@@ -154,29 +206,29 @@ get_fixflip_threshold(OUT fixflip_threshold_t *ff_threshold,
         // Move base to the start of the bucket where the threshold lives
         base += threshold_bucket * step;
 
-        #if defined(USE_RANDOMIZED_SELECTION_OF_EQ_THRESHOLD_BITS) && (N_FLIP_FLAGS_BLOCKS <= 4)
+#if defined(USE_RANDOMIZED_SELECTION_OF_EQ_THRESHOLD_BITS) && (N_FLIP_FLAGS_BLOCKS <= 4)
         // For levels 1 and 3, we can extract Ntau from the last buckets
-            if (i == COUNTING_LEVELS - 1) {
-                for (uint32_t k = 0; k < COUNTING_SORT_BUCKETS; k++) {
-                    uint32_t count = counts[k];
-                    uint32_t right_bucket = -secure_cmp32(k, threshold_bucket);
-                    ff_threshold->total_equal_threshold = (count & right_bucket) |
-                        (ff_threshold->total_equal_threshold & ~right_bucket);
-                }
+        if (i == COUNTING_LEVELS - 1) {
+            for (uint32_t k = 0; k < COUNTING_SORT_BUCKETS; k++) {
+                uint32_t count        = counts[k];
+                uint32_t right_bucket = -secure_cmp32(k, threshold_bucket);
+                ff_threshold->total_equal_threshold =
+                    (count & right_bucket) | (ff_threshold->total_equal_threshold & ~right_bucket);
             }
-        #endif
-
+        }
+#endif
     }
-    ff_threshold->threshold         = base;
+    ff_threshold->threshold = base;
 
 #if defined(USE_RANDOMIZED_SELECTION_OF_EQ_THRESHOLD_BITS)
 
-    #if (N_FLIP_FLAGS_BLOCKS > 4)
-        ff_threshold->total_equal_threshold = compute_total_equal_threshold(ff_upc, ff_threshold->threshold);
-    #endif
+#    if (N_FLIP_FLAGS_BLOCKS > 4)
+    ff_threshold->total_equal_threshold =
+        compute_total_equal_threshold(ff_upc, ff_threshold->threshold);
+#    endif
 
-    uint32_t lower_than_2kappa_mask = secure_l32_mask(N_FLIP_FLAGS_BLOCKS*64 - 1,
-                                                      ff_threshold->total_equal_threshold);
+    uint32_t lower_than_2kappa_mask =
+        secure_l32_mask(N_FLIP_FLAGS_BLOCKS * 64 - 1, ff_threshold->total_equal_threshold);
 
     ff_threshold->n_equal_threshold = (n_flips - n_gt_threshold) & lower_than_2kappa_mask;
 #else
@@ -184,9 +236,6 @@ get_fixflip_threshold(OUT fixflip_threshold_t *ff_threshold,
     ff_threshold->n_equal_threshold = n_flips - n_gt_threshold;
 
 #endif
-
-
-
 }
 
 // Function: fixflip_iter
@@ -207,11 +256,11 @@ get_fixflip_threshold(OUT fixflip_threshold_t *ff_threshold,
 //  - syndrome_t *syndrome: The recomputed syndrome for the new error vector `e`
 //
 ret_t
-fixflip_iter(OUT split_e_t *e,
-             OUT syndrome_t *  syndrome,
+fixflip_iter(OUT split_e_t    *e,
+             OUT syndrome_t   *syndrome,
              IN const uint32_t n_flips,
-             IN const ct_t *ct,
-             IN const sk_t *sk) {
+             IN const ct_t    *ct,
+             IN const sk_t    *sk) {
 
     fixflip_upc_t ff_upc;
     memset(&ff_upc, 0, sizeof(ff_upc));
@@ -220,6 +269,40 @@ fixflip_iter(OUT split_e_t *e,
     flip_worst_fit_indexes(e, &ff_upc, n_flips);
 
     GUARD(recompute_syndrome(syndrome, ct, sk, e));
+    return SUCCESS;
+}
+
+void
+find_upc(OUT upc_all_t                  *upc_out,
+         IN const syndrome_t            *syndrome,
+         IN const compressed_idx_dv_ar_t wlist) {
+    DEFER_CLEANUP(syndrome_t rotated_syndrome = {0}, syndrome_cleanup);
+    DEFER_CLEANUP(upc_t upc, upc_cleanup);
+    for (uint32_t i = 0; i < N0; i++) {
+        memset(&upc, 0, sizeof(upc));
+        for (size_t j = 0; j < DV; j++) {
+            rotate_right(&rotated_syndrome, syndrome, wlist[i].val[j]);
+            bit_sliced_adder(&upc, &rotated_syndrome, LOG2_MSB(j + 1));
+        }
+        // 保存 upc 到 upc_out
+        for (uint8_t slice_i = 0; slice_i < SLICES; slice_i++) {
+            upc_out->val[i].slice[slice_i] = upc.slice[slice_i];
+        }
+    }
+}
+
+ret_t
+fixflip_th(OUT fixflip_threshold_t *fixflip_threshold,
+           IN const syndrome_t     *syndrome,
+           IN const uint32_t        n_flips,
+           IN const sk_t           *sk) {
+
+    fixflip_upc_t ff_upc;
+    memset(&ff_upc, 0, sizeof(ff_upc));
+
+    get_upc(&ff_upc, syndrome, sk->wlist);
+    fixflip_find_th(fixflip_threshold, &ff_upc, n_flips);
+
     return SUCCESS;
 }
 
@@ -250,12 +333,12 @@ fixflip_iter(OUT split_e_t *e,
 //  - syndrome_t *syndrome: The recomputed syndrome for the new error vector `e`
 //
 ret_t
-pickyflip_iter(OUT split_e_t *e,
-               IN syndrome_t *  syndrome,
+pickyflip_iter(OUT split_e_t   *e,
+               IN syndrome_t   *syndrome,
                IN const uint8_t threshold_in,
                IN const uint8_t threshold_out,
-               IN const ct_t *ct,
-               IN const sk_t *sk) {
+               IN const ct_t   *ct,
+               IN const sk_t   *sk) {
     DEFER_CLEANUP(syndrome_t rotated_syndrome = {0}, syndrome_cleanup);
     DEFER_CLEANUP(upc_t upc, upc_cleanup);
 
@@ -334,35 +417,213 @@ pickyflip_iter(OUT split_e_t *e,
 //  - split_e_t *e: The error vector that will be recovered from the ciphertext
 //
 ret_t
-decode_pickyfix(OUT split_e_t *e,
+decode_pickyfix(OUT split_e_t       *e,
+                IN const split_e_t  *R_e,
                 IN const syndrome_t *original_s,
-                IN const ct_t *ct,
-                IN const sk_t *sk) {
+                IN const ct_t       *ct,
+                IN const sk_t       *sk) {
     syndrome_t s;
 
     memset(e, 0, sizeof(*e));
     s = *original_s;
     dup(&s);
 
+    // 临时变量 s_tmp
+    syndrome_t s_tmp = {0};
+    memcpy(&s_tmp, original_s, sizeof(*original_s));
+    dup(&s_tmp);
+
+    // 用于保存 s 的重量
+    uint32_t s_array[MAX_IT + 2] = {0};
+    // 用于保存 th
+    uint32_t th_array[MAX_IT + 2] = {0};
+    // 用于保存 upc 的值
+    upc_all_t upc_array[MAX_IT + 2] = {0};
+    // 记录 e
+    split_e_t e_array[MAX_IT + 2] = {0};
+    // 记录 black_e
+    split_e_t black_e_array[MAX_IT + 2] = {0};
+    // 记录 gray_e
+    split_e_t gray_e_array[MAX_IT + 2] = {0};
+
+    // 将 p_p x 加入文件尾部, 并断行
+    double p_p_array[MAX_IT + 2] = {0};
+    double x_array[MAX_IT + 2]   = {0};
+
     for (int i = 0; i < MAX_IT; i++) {
         if (i == 0) {
+            // ---------------------------------------------------------------------
+            // 记录 s
+            uint16_t s_weight_0 = r_bits_vector_weight((const r_t *)s.qw);
+            s_array[0]          = s_weight_0;
+            // 记录 th，获取 fixflip_iter 的 th
+            fixflip_threshold_t fixflip_threshold = {0};
+            GUARD(fixflip_th(&fixflip_threshold, &s_tmp, FIXFLIP_HEAD_N_FLIPS, sk));
+            th_array[0] = fixflip_threshold.threshold;
+            // 寻找 upc
+            find_upc(&upc_array[0], &s, sk->wlist);
+
             GUARD(fixflip_iter(e, &s, FIXFLIP_HEAD_N_FLIPS, ct, sk));
+
+            e_array[0].val[0]       = e->val[0];
+            e_array[0].val[1]       = e->val[1];
+            black_e_array[0].val[0] = e->val[0];
+            black_e_array[0].val[1] = e->val[1];
+            gray_e_array[0].val[0]  = e->val[0];
+            gray_e_array[0].val[1]  = e->val[1];
+            p_p_array[0]            = 0;
+            x_array[0]              = 0;
+            // ---------------------------------------------------------------------
+            uint16_t s_weight_1 = r_bits_vector_weight((const r_t *)s.qw);
+            s_array[1]          = s_weight_1;
+            th_array[1]         = get_threshold(&s);
+            find_upc(&upc_array[1], &s, sk->wlist);
+
             GUARD(pickyflip_iter(e, &s, get_threshold(&s), (DV + 1) / 2, ct, sk));
+
+            e_array[1].val[0]       = e->val[0];
+            e_array[1].val[1]       = e->val[1];
+            black_e_array[1].val[0] = e->val[0];
+            black_e_array[1].val[1] = e->val[1];
+            gray_e_array[1].val[0]  = e->val[0];
+            gray_e_array[1].val[1]  = e->val[1];
+            p_p_array[1]            = 0;
+            x_array[1]              = 0;
+            // ---------------------------------------------------------------------
+            uint16_t s_weight_2 = r_bits_vector_weight((const r_t *)s.qw);
+            s_array[2]          = s_weight_2;
+            th_array[2]         = get_threshold(&s);
+            find_upc(&upc_array[2], &s, sk->wlist);
+
             GUARD(pickyflip_iter(e, &s, get_threshold(&s), (DV + 1) / 2, ct, sk));
+
+            e_array[2].val[0]       = e->val[0];
+            e_array[2].val[1]       = e->val[1];
+            black_e_array[2].val[0] = e->val[0];
+            black_e_array[2].val[1] = e->val[1];
+            gray_e_array[2].val[0]  = e->val[0];
+            gray_e_array[2].val[1]  = e->val[1];
+            p_p_array[2]            = 0;
+            x_array[2]              = 0;
+            // ---------------------------------------------------------------------
         } else {
+            uint16_t s_weight = r_bits_vector_weight((const r_t *)s.qw);
+            s_array[i + 2]    = s_weight;
+            th_array[i + 2]   = get_threshold(&s);
+            find_upc(&upc_array[i + 2], &s, sk->wlist);
+
             GUARD(pickyflip_iter(e, &s, get_threshold(&s), (DV + 1) / 2, ct, sk));
+
+            e_array[i + 2].val[0]       = e->val[0];
+            e_array[i + 2].val[1]       = e->val[1];
+            black_e_array[i + 2].val[0] = e->val[0];
+            black_e_array[i + 2].val[1] = e->val[1];
+            gray_e_array[i + 2].val[0]  = e->val[0];
+            gray_e_array[i + 2].val[1]  = e->val[1];
+            p_p_array[i + 2]            = 0;
+            x_array[i + 2]              = 0;
         }
     }
     if (r_bits_vector_weight((r_t *)s.qw) > 0) {
+        FILE *fp_3;
+        fp_3 = fopen("weight_bad.txt", "a");
+        fprintf(fp_3, "R_BITS: %d pickyfix 译码失败\n", R_BITS);
+        fclose(fp_3);
+
+        if (W_E_FLAG == 1) {
+            // ---- 将记录的数据写入文件 ----
+            // 首先写入 R_e
+            fprintf_LE_test((const uint64_t *)R_e->val[0].raw, R_BITS);
+            fprintf_LE_test((const uint64_t *)R_e->val[1].raw, R_BITS);
+            // 断行
+            FILE *fp_LE_test_1;
+            fp_LE_test_1 = fopen("iter_data_all.txt", "a");
+            fprintf(fp_LE_test_1, "\n");
+            fclose(fp_LE_test_1);
+
+            // 写入迭代数据
+            for (uint8_t iter_i = 0; iter_i < MAX_IT + 2; iter_i++) {
+                // 写入 s th
+                FILE *fp_iter;
+                fp_iter = fopen("iter_data_all.txt", "a");
+                fprintf(fp_iter, "%u %u ", s_array[iter_i], th_array[iter_i]);
+                fclose(fp_iter);
+                // 写入 upc
+                compute_upc_and_save_test(upc_array[iter_i].val[0]);
+                compute_upc_and_save_test(upc_array[iter_i].val[1]);
+                // 写入 e black_e gray_e p_p x
+                // 记录当前的 e0
+                fprintf_LE_test((uint64_t *)e_array[iter_i].val[0].raw, R_BITS);
+                // 记录当前的 e1
+                fprintf_LE_test((uint64_t *)e_array[iter_i].val[1].raw, R_BITS);
+                // 记录当前的 black_e0
+                fprintf_LE_test((uint64_t *)black_e_array[iter_i].val[0].raw, R_BITS);
+                // 记录当前的 black_e1
+                fprintf_LE_test((uint64_t *)black_e_array[iter_i].val[1].raw, R_BITS);
+                // 记录当前的 gray_e0
+                fprintf_LE_test((uint64_t *)gray_e_array[iter_i].val[0].raw, R_BITS);
+                // 记录当前的 gray_e1
+                fprintf_LE_test((uint64_t *)gray_e_array[iter_i].val[1].raw, R_BITS);
+                // 将 p_p,x 加入尾部, 并断行
+                FILE *fp_iter_2;
+                fp_iter_2 = fopen("iter_data_all.txt", "a");
+                fprintf(fp_iter_2, "%f %f", p_p_array[iter_i], x_array[iter_i]);
+                fprintf(fp_iter_2, "\n");
+                fclose(fp_iter_2);
+            }
+        }
+
         DMSG("    Weight of e: %lu\n",
              r_bits_vector_weight(&e->val[0]) + r_bits_vector_weight(&e->val[1]));
         DMSG("    Weight of syndrome: %lu\n", r_bits_vector_weight((r_t *)s.qw));
         BIKE_ERROR(E_DECODING_FAILURE);
     }
 
+    if (W_R_FLAG == 1) {
+        // ---- 将记录的数据写入文件 ----
+        // 首先写入 R_e
+        fprintf_LE_test((const uint64_t *)R_e->val[0].raw, R_BITS);
+        fprintf_LE_test((const uint64_t *)R_e->val[1].raw, R_BITS);
+        // 断行
+        FILE *fp_LE_test_1;
+        fp_LE_test_1 = fopen("iter_data_all.txt", "a");
+        fprintf(fp_LE_test_1, "\n");
+        fclose(fp_LE_test_1);
+
+        // 写入迭代数据
+        for (uint8_t iter_i = 0; iter_i < MAX_IT + 2; iter_i++) {
+            // 写入 s th
+            FILE *fp_iter;
+            fp_iter = fopen("iter_data_all.txt", "a");
+            fprintf(fp_iter, "%u %u ", s_array[iter_i], th_array[iter_i]);
+            fclose(fp_iter);
+            // 写入 upc
+            compute_upc_and_save_test(upc_array[iter_i].val[0]);
+            compute_upc_and_save_test(upc_array[iter_i].val[1]);
+            // 写入 e black_e gray_e p_p x
+            // 记录当前的 e0
+            fprintf_LE_test((uint64_t *)e_array[iter_i].val[0].raw, R_BITS);
+            // 记录当前的 e1
+            fprintf_LE_test((uint64_t *)e_array[iter_i].val[1].raw, R_BITS);
+            // 记录当前的 black_e0
+            fprintf_LE_test((uint64_t *)black_e_array[iter_i].val[0].raw, R_BITS);
+            // 记录当前的 black_e1
+            fprintf_LE_test((uint64_t *)black_e_array[iter_i].val[1].raw, R_BITS);
+            // 记录当前的 gray_e0
+            fprintf_LE_test((uint64_t *)gray_e_array[iter_i].val[0].raw, R_BITS);
+            // 记录当前的 gray_e1
+            fprintf_LE_test((uint64_t *)gray_e_array[iter_i].val[1].raw, R_BITS);
+            // 将 p_p,x 加入尾部, 并断行
+            FILE *fp_iter_2;
+            fp_iter_2 = fopen("iter_data_all.txt", "a");
+            fprintf(fp_iter_2, "%f %f", p_p_array[iter_i], x_array[iter_i]);
+            fprintf(fp_iter_2, "\n");
+            fclose(fp_iter_2);
+        }
+    }
+
     return SUCCESS;
 }
-
 
 #ifdef USE_RANDOMIZED_SELECTION_OF_EQ_THRESHOLD_BITS
 
@@ -378,13 +639,13 @@ secure_modulo_big_n(uint32_t ns[N_32_BIT_BLOCKS_FOR_RANDOM_BITS_FOR_FISHER_YATES
     for (uint32_t b = 0; b < N_32_BIT_BLOCKS_FOR_RANDOM_BITS_FOR_FISHER_YATES; b++) {
 
         for (uint32_t _i = 0; _i < 32; _i++) {
-            uint32_t i = 31 - _i;
-            r = r << 1;
+            uint32_t i   = 31 - _i;
+            r            = r << 1;
             uint32_t n_i = (ns[b] >> i) & 1;
             r &= ~1;
             r |= n_i;
 
-            uint32_t swap = secure_l32_mask(r, d);
+            uint32_t swap    = secure_l32_mask(r, d);
             uint32_t r_prime = r - d;
 
             r = (swap & r_prime) | (~swap & r);
@@ -395,16 +656,16 @@ secure_modulo_big_n(uint32_t ns[N_32_BIT_BLOCKS_FOR_RANDOM_BITS_FOR_FISHER_YATES
 }
 
 void
-init_eq_flip_flags(OUT uint64_t eq_flip_flags[N_FLIP_FLAGS_BLOCKS],
-                       IN fixflip_threshold_t *ff_threshold) {
+init_eq_flip_flags(OUT uint64_t            eq_flip_flags[N_FLIP_FLAGS_BLOCKS],
+                   IN fixflip_threshold_t *ff_threshold) {
 
     uint32_t weight = ff_threshold->n_equal_threshold;
 
     for (uint32_t i = 0; i < N_FLIP_FLAGS_BLOCKS; i++) {
         eq_flip_flags[i] = 0;
 
-        uint64_t mask_gt_64 = (1 + secure_l32_mask(weight, 64)) - 1ULL;
-        uint64_t mask_gt_0 = (1 + secure_l32_mask(weight, 1)) - 1ULL;
+        uint64_t mask_gt_64            = (1 + secure_l32_mask(weight, 64)) - 1ULL;
+        uint64_t mask_gt_0             = (1 + secure_l32_mask(weight, 1)) - 1ULL;
         uint64_t mask_between_0_and_64 = mask_gt_0 & ~mask_gt_64;
 
         uint64_t final_block_value = (0xffffffffffffffff) >> (64 - weight);
@@ -431,20 +692,20 @@ secure_get_random_index(uint32_t min, uint32_t max) {
     return (ret & valid_mask) | (min & ~valid_mask);
 }
 
-_INLINE_  void
+_INLINE_ void
 secure_swap_hiding_index2(uint64_t eq_flip_flags[N_FLIP_FLAGS_BLOCKS],
-                 uint32_t index1,
-                 uint32_t index2,
-                 uint64_t swap_flag) {
+                          uint32_t index1,
+                          uint32_t index2,
+                          uint64_t swap_flag) {
 
     // Remember that index1 does not need to be blinded
-    uint64_t b1 = index1 / 64;
-    uint64_t o1 = index1 % 64;
+    uint64_t b1   = index1 / 64;
+    uint64_t o1   = index1 % 64;
     uint64_t bit1 = (eq_flip_flags[b1] >> o1) & 1;
     eq_flip_flags[b1] &= ~((1ULL & swap_flag) << o1);
 
     // Now, we have to hide index2
-    uint64_t b2 = index2 >> 6; // b2 = index2 % 64
+    uint64_t b2 = index2 >> 6;        // b2 = index2 % 64
     uint64_t o2 = index2 - (b2 * 64); // index2 % 64
 
     uint64_t bit2 = 0;
@@ -453,24 +714,22 @@ secure_swap_hiding_index2(uint64_t eq_flip_flags[N_FLIP_FLAGS_BLOCKS],
         right_block_mask &= swap_flag;
 
         uint32_t bit = (eq_flip_flags[b2] >> o2) & 1;
-        bit2 = (bit  & right_block_mask) | (bit2 & ~right_block_mask);
+        bit2         = (bit & right_block_mask) | (bit2 & ~right_block_mask);
 
-        eq_flip_flags[b2] &= (~(1ULL << o2) & right_block_mask) |
-                                 (~right_block_mask);
+        eq_flip_flags[b2] &= (~(1ULL << o2) & right_block_mask) | (~right_block_mask);
 
         eq_flip_flags[b2] |= ((bit1 << o2) & right_block_mask);
-
     }
     eq_flip_flags[b1] |= (bit2 & swap_flag) << o1;
 }
 
 void
-secure_shuffle_eq_flip_flags(OUT uint64_t eq_flip_flags[N_FLIP_FLAGS_BLOCKS],
+secure_shuffle_eq_flip_flags(OUT uint64_t            eq_flip_flags[N_FLIP_FLAGS_BLOCKS],
                              IN fixflip_threshold_t *ff_threshold,
-                             IN uint32_t total_upc_counters_eq_threshold) {
+                             IN uint32_t             total_upc_counters_eq_threshold) {
 
     for (uint32_t i = 0; i < FIXFLIP_HEAD_N_FLIPS; i++) {
-        uint32_t random = secure_get_random_index(i, total_upc_counters_eq_threshold);
+        uint32_t random    = secure_get_random_index(i, total_upc_counters_eq_threshold);
         uint64_t swap_flag = (1 + secure_l32_mask(ff_threshold->n_equal_threshold, i)) - 1UL;
         secure_swap_hiding_index2(eq_flip_flags, i, random, swap_flag);
     }

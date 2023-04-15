@@ -48,18 +48,20 @@ r_bits_vector_weight(IN const r_t *in) {
 
 // Prints a QW in LE/BE in win/linux format
 _INLINE_ void
-print_uint64(IN const uint64_t val) {
-    // If printing in BE is requried swap the order of bytes
+print_uint64(IN const uint64_t val, IN FILE *fp_2)
+{
+
+  // If printing in BE is requried swap the order of bytes
 #ifdef PRINT_IN_BE
-    uint64_t tmp = bswap_64(val);
+  uint64_t tmp = bswap_64(val);
 #else
-    uint64_t tmp = val;
+  uint64_t tmp = val;
 #endif
 
-    printf("%.16" PRIx64, tmp);
+  fprintf(fp_2, "%.16" PRIx64, tmp);
 
 #ifndef NO_SPACE
-    printf(" ");
+  fprintf(fp_2, " ");
 #endif
 }
 
@@ -69,85 +71,166 @@ print_uint64(IN const uint64_t val) {
 _INLINE_ uint8_t
 print_last_block(IN const uint8_t *last_bytes,
                  IN const uint32_t bits_num,
-                 IN const uint32_t endien) {
-    // Floor of bits/64 the reminder is in the next QW
-    const uint32_t qw_num = bits_num / BITS_IN_QW;
+                 IN const uint32_t endien,
+                 IN FILE          *fp_1)
+{
+  // Floor of bits/64 the reminder is in the next QW
+  const uint32_t qw_num = bits_num / BITS_IN_QW;
 
-    // How many bits to pad with zero
-    const uint32_t rem_bits = bits_num - (BITS_IN_QW * qw_num);
+  // How many bits to pad with zero
+  const uint32_t rem_bits = bits_num - (BITS_IN_QW * qw_num);
 
-    // We read byte byte and not the whole QW to avoid reading bad memory address
-    const uint32_t bytes_num =
-        ((rem_bits % 8) == 0) ? rem_bits / BITS_IN_BYTE : 1 + rem_bits / BITS_IN_BYTE;
+  // We read byte byte and not the whole QW to avoid reading bad memory address
+  const uint32_t bytes_num = ((rem_bits % 8) == 0) ? rem_bits / BITS_IN_BYTE
+                                                   : 1 + rem_bits / BITS_IN_BYTE;
 
-    // Must be signed for the LE loop
-    int i;
+  // printf("print_last_block 中的 bytes_num: %u \n", bytes_num);
 
-    if (0 == rem_bits) {
-        return 0;
+  // Must be signed for the LE loop
+  int i;
+
+  if(0 == rem_bits)
+  {
+    return 0;
+  }
+
+  // Mask unneeded bits
+  const uint8_t last_byte = (rem_bits % 8 == 0)
+                                ? last_bytes[bytes_num - 1]
+                                : last_bytes[bytes_num - 1] & MASK(rem_bits % 8);
+
+  // printf("print_last_block 中的 last_byte: %u \n", last_byte);
+  // BE
+  if(0 == endien)
+  {
+    for(i = 0; (uint32_t)i < (bytes_num - 1); i++)
+    {
+      printf("%.2x", last_bytes[i]);
     }
 
-    // Mask unneeded bits
-    const uint8_t last_byte = (rem_bits % 8 == 0) ? last_bytes[bytes_num - 1]
-                                                  : last_bytes[bytes_num - 1] & MASK(rem_bits % 8);
-    // BE
-    if (0 == endien) {
-        for (i = 0; (uint32_t)i < (bytes_num - 1); i++) {
-            printf("%.2x", last_bytes[i]);
-        }
+    printf("%.2x", last_byte);
 
-        printf("%.2x", last_byte);
-
-        for (i++; (uint32_t)i < sizeof(uint64_t); i++) {
-            printf("__");
-        }
-    } else {
-        for (i = sizeof(uint64_t) - 1; (uint32_t)i >= bytes_num; i--) {
-            printf("__");
-        }
-
-        printf("%.2x", last_byte);
-
-        for (i--; i >= 0; i--) {
-            printf("%.2x", last_bytes[i]);
-        }
+    for(i++; (uint32_t)i < sizeof(uint64_t); i++)
+    {
+      printf("__");
     }
+  }
+  else
+  {
+    for(i = sizeof(uint64_t) - 1; (uint32_t)i >= bytes_num; i--)
+    {
+      fprintf(fp_1, "__");
+    }
+
+    fprintf(fp_1, "%.2x", last_byte);
+
+    for(i--; i >= 0; i--)
+    {
+      fprintf(fp_1, "%.2x", last_bytes[i]);
+    }
+  }
 
 #ifndef NO_SPACE
-    printf(" ");
+  fprintf(fp_1, " ");
 #endif
 
-    return 1;
+  return 1;
 }
 
 void
-print_LE(IN const uint64_t *in, IN const uint32_t bits_num) {
-    const uint32_t qw_num = bits_num / BITS_IN_QW;
+print_LE(IN const uint64_t *in, IN const uint32_t bits_num)
+{
+  const uint32_t qw_num = bits_num / BITS_IN_QW;
+  // 将 in 分成多个段，每段保存数据，最后一段存在溢出数据
+  // printf("qw_num的值为 %" PRIu32 "\n",qw_num);
+  // printf("数组转换为uint64_t的in[0]值 %" PRIu64 "\n",*in);
+  // printf("in的长度: %lu \n", sizeof(in));
+  // printf("第 qw_num-1 块的值: %lu \n", in[qw_num-1]);
+  // printf("小端输出qw_num的值(块数) %" PRIu32 "\n",qw_num);
 
-    // Print the MSB QW
-    uint32_t qw_pos = print_last_block((const uint8_t *)&in[qw_num], bits_num, 1);
+  FILE *fp;
+  fp = fopen("iter_data.txt", "a");
 
-    // Print each 8 bytes separated by space (if required)
-    for (int i = ((int)qw_num) - 1; i >= 0; i--, qw_pos++) {
-        print_uint64(in[i]);
-        print_newline(qw_pos);
-    }
+  // Print the MSB QW
+  uint32_t qw_pos =
+      print_last_block((const uint8_t *)&in[qw_num], bits_num, 1, fp);
 
-    printf("\n");
+  // Print each 8 bytes separated by space (if required)
+  for(int i = ((int)qw_num) - 1; i >= 0; i--, qw_pos++)
+  {
+    print_uint64(in[i], fp);
+    // print_newline(qw_pos);
+  }
+
+  fclose(fp);
+
+  // printf("\n");
 }
 
 void
-print_BE(IN const uint64_t *in, IN const uint32_t bits_num) {
-    const uint32_t qw_num = bits_num / BITS_IN_QW;
+print_BE(IN const uint64_t *in, IN const uint32_t bits_num)
+{
+  const uint32_t qw_num = bits_num / BITS_IN_QW;
 
-    // Print each 16 numbers separatly
-    for (uint32_t i = 0; i < qw_num; ++i) {
-        print_uint64(in[i]);
-        print_newline(i);
-    }
+  FILE *fp;
+  fp = fopen("iter_data.txt", "a");
 
-    // Print the MSB QW
-    print_last_block((const uint8_t *)&in[qw_num], bits_num, 0);
+  // Print each 16 numbers separatly
+  for(uint32_t i = 0; i < qw_num; ++i)
+  {
+    print_uint64(in[i], fp);
+    // print_newline(i);
+  }
 
-    printf("\n");
+  // Print the MSB QW
+  print_last_block((const uint8_t *)&in[qw_num], bits_num, 0, fp);
+
+  // printf("\n");
+  fclose(fp);
+}
+
+void
+fprintf_LE(IN const uint64_t *in, IN const uint32_t bits_num)
+{
+  const uint32_t qw_num = bits_num / BITS_IN_QW;
+
+  FILE *fp;
+  fp = fopen("iter_data.txt", "a");
+
+  // Print the MSB QW
+  uint32_t qw_pos =
+      print_last_block((const uint8_t *)&in[qw_num], bits_num, 1, fp);
+
+  // Print each 8 bytes separated by space (if required)
+  for(int i = ((int)qw_num) - 1; i >= 0; i--, qw_pos++)
+  {
+    print_uint64(in[i], fp);
+    // print_newline(qw_pos);
+  }
+  // fprintf(fp," ");
+  fclose(fp);
+  // printf("\n");
+}
+
+void
+fprintf_LE_test(IN const uint64_t *in, IN const uint32_t bits_num)
+{
+  const uint32_t qw_num = bits_num / BITS_IN_QW;
+
+  FILE *fp;
+  fp = fopen("iter_data_all.txt", "a");
+
+  // Print the MSB QW
+  uint32_t qw_pos =
+      print_last_block((const uint8_t *)&in[qw_num], bits_num, 1, fp);
+
+  // Print each 8 bytes separated by space (if required)
+  for(int i = ((int)qw_num) - 1; i >= 0; i--, qw_pos++)
+  {
+    print_uint64(in[i], fp);
+    // print_newline(qw_pos);
+  }
+  // fprintf(fp," ");
+  fclose(fp);
+  // printf("\n");
 }
