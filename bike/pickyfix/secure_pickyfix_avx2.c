@@ -210,6 +210,14 @@ get_randomized_eq_flip_mask(uint32_t next_32_flags,
     return out;
 }
 
+// 用于寻找 th
+void
+fixflip_find_th(IN OUT fixflip_threshold_t *fixflip_threshold, IN fixflip_upc_t *ff_upc, IN uint32_t n_flips) {
+    fixflip_threshold_t ff_threshold = {0};
+    get_fixflip_threshold(&ff_threshold, ff_upc, n_flips);
+    fixflip_threshold->threshold = ff_threshold.threshold;
+}
+
 uint32_t
 flip_worst_fit_indexes(OUT split_e_t *e, IN fixflip_upc_t *ff_upc, IN uint32_t n_flips) {
     DEFER_CLEANUP(uint32_t vals[DV + 1] = {0}, vals_cleanup);
@@ -293,6 +301,13 @@ uint32_t compute_total_equal_threshold(fixflip_upc_t *ff_upc, uint8_t threshold)
 
 #else
 
+// 用于寻找 th
+void
+fixflip_find_th(IN OUT fixflip_threshold_t *fixflip_threshold, IN fixflip_upc_t *ff_upc, IN uint32_t n_flips) {
+    fixflip_threshold_t ff_threshold = {0};
+    get_fixflip_threshold(&ff_threshold, ff_upc, n_flips);
+    fixflip_threshold->threshold = ff_threshold.threshold;
+}
 
 uint32_t
 flip_worst_fit_indexes(OUT split_e_t *e, IN fixflip_upc_t *ff_upc, IN uint32_t n_flips) {
