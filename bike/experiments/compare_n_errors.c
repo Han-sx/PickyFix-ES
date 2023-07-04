@@ -196,20 +196,20 @@ main(int argc, char *argv[]) {
     srand(seed);
 
     if (quiet == 0) {
-        printf("LEVEL,R_BITS,T1,decoder,nflips,av_errors_left,max_errors_left,n_tests\n");
+        printf("LEVEL,R_BITS,T1_BIKE,decoder,nflips,av_errors_left,max_errors_left,n_tests\n");
     }
     // BGF
     {
         error_pattern_t av_errors = {0};
-        get_average_errors(&av_errors, n_tests, T1, DEC_BGF, 0);
-        printf("%d,%d,%d,BGF,NA,%lf,%lf,%d\n", LEVEL, R_BITS, T1, av_errors.n_errors_left,
+        get_average_errors(&av_errors, n_tests, T1_BIKE, DEC_BGF, 0);
+        printf("%d,%d,%d,BGF,NA,%lf,%lf,%d\n", LEVEL, R_BITS, T1_BIKE, av_errors.n_errors_left,
                av_errors.max_errors_left, n_tests);
     }
 
     error_pattern_t av_errors = {0};
-    for (int nflips = 5; nflips <= MIN(T1, 200); nflips += 5) {
-        get_average_errors(&av_errors, n_tests, T1, DEC_PICKYFIX, nflips);
-        printf("%d,%d,%d,PickyFix,%d,%lf,%lf,%d\n", LEVEL, R_BITS, T1, nflips, av_errors.n_errors_left,
+    for (int nflips = 5; nflips <= MIN(T1_BIKE, 200); nflips += 5) {
+        get_average_errors(&av_errors, n_tests, T1_BIKE, DEC_PICKYFIX, nflips);
+        printf("%d,%d,%d,PickyFix,%d,%lf,%lf,%d\n", LEVEL, R_BITS, T1_BIKE, nflips, av_errors.n_errors_left,
                av_errors.max_errors_left, n_tests);
         fflush(stdout);
     }

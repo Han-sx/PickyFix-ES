@@ -51,7 +51,7 @@
 #include "gf2x.h"
 #include "utilities.h"
 #include <assert.h>
-#include <immintrin.h>
+// #include <immintrin.h>
 #include <stdlib.h>
 #include <string.h>
 

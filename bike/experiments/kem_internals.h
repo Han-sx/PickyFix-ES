@@ -88,7 +88,7 @@ function_h(OUT split_e_t *splitted_e, IN const r_t *in0, IN const r_t *in1) {
     DEFER_CLEANUP(padded_e_t e, padded_e_cleanup);
     DEFER_CLEANUP(compressed_idx_t_t dummy, compressed_idx_t_cleanup);
 
-    GUARD(generate_sparse_rep((uint64_t *)&e, dummy.val, T1, N_BITS, sizeof(e), &prf_state));
+    GUARD(generate_sparse_rep((uint64_t *)&e, dummy.val, T1_BIKE, N_BITS, sizeof(e), &prf_state));
     split_e(splitted_e, &e.val);
 
     return SUCCESS;

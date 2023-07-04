@@ -42,10 +42,13 @@
 // This is the value of n_flips that is used in the first iteration of FixFlip.
 #if (LEVEL == 1)
 #    define FIXFLIP_HEAD_N_FLIPS 55
+#    define FIND_X_COUNT 110
 #elif (LEVEL == 3)
 #    define FIXFLIP_HEAD_N_FLIPS 65
+#    define FIND_X_COUNT 130
 #elif (LEVEL == 5)
 #    define FIXFLIP_HEAD_N_FLIPS 100
+#    define FIND_X_COUNT 200
 #else
 #    error
 #endif
@@ -73,8 +76,14 @@ fixflip_iter(OUT split_e_t *e,
              IN const sk_t *sk);
 
 ret_t
+fixflip_th(OUT fixflip_threshold_t *fixflip_threshold,
+             IN const syndrome_t   *syndrome,
+             IN const uint32_t n_flips,
+             IN const sk_t    *sk);
+
+ret_t
 pickyflip_iter(OUT split_e_t *e,
-               IN syndrome_t *  syndrome,
+               IN OUT syndrome_t *  syndrome,
                IN const uint8_t threshold_in,
                IN const uint8_t threshold_out,
                IN const ct_t *ct,
@@ -82,6 +91,9 @@ pickyflip_iter(OUT split_e_t *e,
 
 uint32_t
 flip_worst_fit_indexes(OUT split_e_t *e, IN fixflip_upc_t *ff_upc, IN uint32_t n);
+
+void
+fixflip_find_th(IN OUT fixflip_threshold_t *fixflip_threshold, IN fixflip_upc_t *ff_upc, IN uint32_t n_flips);
 
 void
 get_upc(OUT fixflip_upc_t *ff_upc,

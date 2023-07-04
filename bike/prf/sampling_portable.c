@@ -21,7 +21,7 @@
 #include "sampling.h"
 #include <assert.h>
 
-#define MAX_WEIGHT (T1 > DV ? T1 : DV)
+#define MAX_WEIGHT (T1_BIKE > DV ? T1_BIKE : DV)
 
 // This implementation assumes that the wlist contains fake list
 void
