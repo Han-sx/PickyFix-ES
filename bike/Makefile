@@ -3,6 +3,8 @@ export OBJ_DIR = ${ROOT}/obj/
 
 include inc.mk
 
+LIST = 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 48 49 50 51 52 53 54 55 56 57 58 59 60
+
 BIN_DIR = ./bin/
 
 SUB_DIRS := prf 
@@ -61,3 +63,43 @@ pretty:
 
 tidy:
 	clang-tidy-9 ${SRC_FOR_TIDY} -p $(ROOT) --fix-errors --format-style=file -- ${CFLAGS}
+
+run:
+	cd bin;\
+	for i in $(LIST); do \
+		mkdir $$i;\
+		cp perf $$i;\
+		cd $$i;\
+		nohup ./perf &\
+		cd ..;\
+		sleep 1;\
+		echo "第 $$i 个进程生成中...";\
+	done
+	@echo "---运行完成, 所有程序将在后台执行---"
+
+copy:
+	cd bin;\
+	mkdir all;\
+	for i in $(LIST); do \
+		cd $$i;\
+		cp iter_data_all.txt ../all;\
+		cd ..;\
+		cd all;\
+		mv iter_data_all.txt iter_data_all_$$i;\
+		cd ..;\
+	done
+	cp copy_data/copy.c bin/all;\
+	cd bin/all;\
+	gcc copy.c -o copy;\
+	./copy;\
+	cd ..;\
+	mkdir iter_data_all;\
+	cd all;\
+	cp iter_data_all ../iter_data_all;\
+	cd ..;\
+	cd iter_data_all;\
+	wc iter_data_all
+
+cleans:
+	cd bin;\
+	rm -rf iter_data_all all 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 48 49 50 51 52 53 54 55 56 57 58 59 60 61 62 63 64

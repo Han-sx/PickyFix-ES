@@ -52,8 +52,8 @@ main(int argc, char *argv[]) {
         hide_header = atoi(argv[1]);
     }
 
-    if (!hide_header)
-        printf("implementation,decoder,level,n_iterations,r_bits,cycles\n");
+    if (!hide_header){}
+    //     printf("implementation,decoder,level,n_iterations,r_bits,cycles\n");
 
     uint8_t sk[sizeof(sk_t)]    = {0}; // private-key: (h0, h1)
     uint8_t pk[sizeof(pk_t)]    = {0}; // public-key:  (g0, g1)
@@ -70,13 +70,15 @@ main(int argc, char *argv[]) {
         assert(res == SUCCESS);
 
 #ifdef TEST_PICKYFIX
-        printf(IMPLEMENTATION ",PickyFix,%d,%d,%d,", LEVEL, MAX_IT, R_BITS);
-        MEASURE(" ", res = crypto_kem_dec_pickyfix(k_dec, ct, sk););
+        // printf(IMPLEMENTATION ",PickyFix,%d,%d,%d,", LEVEL, MAX_IT, R_BITS);
+        // MEASURE(" ", res = crypto_kem_dec_pickyfix(k_dec, ct, sk););
+        res = crypto_kem_dec_pickyfix(k_dec, ct, sk);
         assert(res == SUCCESS);
 #endif
 #ifdef TEST_BGF
-        printf(IMPLEMENTATION ",BGF,%d,%d,%d,", LEVEL, MAX_IT, R_BITS);
-        MEASURE(" ", res = crypto_kem_dec_bgf(k_dec, ct, sk););
+        // printf(IMPLEMENTATION ",BGF,%d,%d,%d,", LEVEL, MAX_IT, R_BITS);
+        // MEASURE(" ", res = crypto_kem_dec_bgf(k_dec, ct, sk););
+        res = crypto_kem_dec_bgf(k_dec, ct, sk);
         assert(res == SUCCESS);
 #endif
     }

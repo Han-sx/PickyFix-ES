@@ -525,10 +525,10 @@ decode_pickyfix(OUT split_e_t       *e,
         }
     }
     if (r_bits_vector_weight((r_t *)s.qw) > 0) {
-        FILE *fp_3;
-        fp_3 = fopen("weight_bad.txt", "a");
-        fprintf(fp_3, "R_BITS: %d pickyfix 译码失败\n", R_BITS);
-        fclose(fp_3);
+        // FILE *fp_3;
+        // fp_3 = fopen("weight_bad.txt", "a");
+        // fprintf(fp_3, "R_BITS: %d pickyfix 译码失败\n", R_BITS);
+        // fclose(fp_3);
 
         if (W_E_FLAG == 1) {
             // ---- 将记录的数据写入文件 ----
