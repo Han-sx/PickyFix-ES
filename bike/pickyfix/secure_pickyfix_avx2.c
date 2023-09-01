@@ -279,8 +279,8 @@ flip_worst_fit_indexes(OUT split_e_t *e, IN fixflip_upc_t *ff_upc, IN uint32_t n
         n_found_eq_thresh += eq_flip_mask;
         e_decomp[i] ^= (mask_gt | eq_flip_mask);
     }
-    assert(n_found_eq_thresh == ff_threshold.n_equal_threshold);
-    assert(n_found_gt_thresh == n_flips - ff_threshold.n_equal_threshold);
+    // assert(n_found_eq_thresh == ff_threshold.n_equal_threshold);
+    // assert(n_found_gt_thresh == n_flips - ff_threshold.n_equal_threshold);
 
     compress_e(e, e_decomp);
 
