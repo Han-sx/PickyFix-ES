@@ -61,9 +61,9 @@ main(int argc, char *argv[]) {
     uint8_t k_dec[sizeof(ss_t)] = {0}; // shared secret after decapsulate
 
     int res = 0;
-    res = crypto_kem_keypair(pk, sk);
+    MEASURE(" ", res = crypto_kem_keypair(pk, sk););
     assert(res == SUCCESS);
-    res = crypto_kem_enc(ct, k_enc, pk);
+    MEASURE(" ", res = crypto_kem_enc(ct, k_enc, pk););
     assert(res == SUCCESS);
 
 #ifdef TEST_PICKYFIX

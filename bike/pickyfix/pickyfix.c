@@ -24,8 +24,13 @@
 // 使用高斯求解还是 m4ri 求解， 0 使用高斯，1 使用 m4ri
 #define GUSS_OR_M4RI 1
 // 定义 th 下降额度
-#define DELTA_STEP_1 0
+#define DELTA_STEP_1      0
 #define DELTA_STEP_REMAIN 0
+
+// 是否对未知数进行填充，1为填充，0为不填充
+#define X_COUNT_PAD 1
+// 填充为 X_COUNT_MIN
+#define X_COUNT_MIN 2200
 
 // 用于交换两个数组
 _INLINE_ void
@@ -331,9 +336,9 @@ fixflip_iter(OUT split_e_t    *e,
 
 ret_t
 fixflip_th(OUT fixflip_threshold_t *fixflip_threshold,
-             IN const syndrome_t   *syndrome,
-             IN const uint32_t n_flips,
-             IN const sk_t    *sk) {
+           IN const syndrome_t     *syndrome,
+           IN const uint32_t        n_flips,
+           IN const sk_t           *sk) {
 
     fixflip_upc_t ff_upc;
     memset(&ff_upc, 0, sizeof(ff_upc));
@@ -520,32 +525,35 @@ decode_pickyfix(OUT split_e_t       *e,
             fixflip_threshold_t fixflip_threshold = {0};
             GUARD(fixflip_th(&fixflip_threshold, &s_tmp, FIXFLIP_HEAD_N_FLIPS, sk));
             // 输出第一轮中 fixflip 给出的 th 大小
-            printf("\nth 的大小: %u\n", fixflip_threshold.threshold);
+            // printf("\nth 的大小: %u\n", fixflip_threshold.threshold);
             // 基于 fixflip 的 th 进行搜寻可能错误位置
-            GUARD(pickyflip_find_x_th(&x_collection, &s_tmp, fixflip_threshold.threshold - DELTA_STEP_1, sk));
+            GUARD(pickyflip_find_x_th(&x_collection, &s_tmp,
+                                      fixflip_threshold.threshold - DELTA_STEP_1, sk));
             // 判断 e 和 x_collection 是否相等---test---
-            split_e_t test_e = {0};
-            // 与一下 e 和 x_collection
-            for (uint16_t test_i = 0; test_i < R_SIZE; test_i++) {
-                test_e.val[0].raw[test_i] =
-                    x_collection.val[0].raw[test_i] & e->val[0].raw[test_i];
-                test_e.val[1].raw[test_i] =
-                    x_collection.val[1].raw[test_i] & e->val[1].raw[test_i];
-            }
-            // 获取测试的个数
-            uint32_t test_weight = r_bits_vector_weight((r_t *)test_e.val[0].raw) +
-                                   r_bits_vector_weight((r_t *)test_e.val[1].raw);
-            // 获取测试的个数
-            uint32_t e_test_weight = r_bits_vector_weight((r_t *)e->val[0].raw) +
-                                     r_bits_vector_weight((r_t *)e->val[1].raw);
-            // 获取测试的个数
-            uint32_t x_test_weight = r_bits_vector_weight((r_t *)x_collection.val[0].raw) +
-                                     r_bits_vector_weight((r_t *)x_collection.val[1].raw);
-            printf("\n第一轮第一步我们的集合和 pickyfix 与的个数: %u, e 的个数: %u , x 个数: %u \n", test_weight,
-                   e_test_weight, x_test_weight);
+            // split_e_t test_e = {0};
+            // // 与一下 e 和 x_collection
+            // for (uint16_t test_i = 0; test_i < R_SIZE; test_i++) {
+            //     test_e.val[0].raw[test_i] =
+            //         x_collection.val[0].raw[test_i] & e->val[0].raw[test_i];
+            //     test_e.val[1].raw[test_i] =
+            //         x_collection.val[1].raw[test_i] & e->val[1].raw[test_i];
+            // }
+            // // 获取测试的个数
+            // uint32_t test_weight = r_bits_vector_weight((r_t *)test_e.val[0].raw) +
+            //                        r_bits_vector_weight((r_t *)test_e.val[1].raw);
+            // // 获取测试的个数
+            // uint32_t e_test_weight = r_bits_vector_weight((r_t *)e->val[0].raw) +
+            //                          r_bits_vector_weight((r_t *)e->val[1].raw);
+            // // 获取测试的个数
+            // uint32_t x_test_weight = r_bits_vector_weight((r_t *)x_collection.val[0].raw) +
+            //                          r_bits_vector_weight((r_t *)x_collection.val[1].raw);
+            // printf(
+            //     "\n第一轮第一步我们的集合和 pickyfix 与的个数: %u, e 的个数: %u , x 个数: %u \n",
+            //     test_weight, e_test_weight, x_test_weight);
 
             // 获取大于 th 的集合, 合并两个数组
-            GUARD(pickyflip_find_x_th(&x_collection_tmp, &s, get_threshold(&s) - DELTA_STEP_REMAIN, sk));
+            GUARD(pickyflip_find_x_th(&x_collection_tmp, &s, get_threshold(&s) - DELTA_STEP_REMAIN,
+                                      sk));
             for (uint8_t i_N0 = 0; i_N0 < N0; i_N0++) {
                 array_or((uint8_t *)&x_collection.val[i_N0].raw, x_collection_tmp.val[i_N0].raw,
                          R_SIZE);
@@ -554,7 +562,8 @@ decode_pickyfix(OUT split_e_t       *e,
             GUARD(pickyflip_iter(e, &s, get_threshold(&s), (DV + 1) / 2, ct, sk));
             // -----------------------------------------------------------------------------------------
             // 获取大于 th 的集合, 合并两个数组
-            GUARD(pickyflip_find_x_th(&x_collection_tmp, &s, get_threshold(&s) - DELTA_STEP_REMAIN, sk));
+            GUARD(pickyflip_find_x_th(&x_collection_tmp, &s, get_threshold(&s) - DELTA_STEP_REMAIN,
+                                      sk));
             for (uint8_t i_N0 = 0; i_N0 < N0; i_N0++) {
                 array_or((uint8_t *)&x_collection.val[i_N0].raw, x_collection_tmp.val[i_N0].raw,
                          R_SIZE);
@@ -564,7 +573,8 @@ decode_pickyfix(OUT split_e_t       *e,
         } else {
             // -----------------------------------------------------------------------------------------
             // 获取大于 th 的集合, 合并两个数组
-            GUARD(pickyflip_find_x_th(&x_collection_tmp, &s, get_threshold(&s) - DELTA_STEP_REMAIN, sk));
+            GUARD(pickyflip_find_x_th(&x_collection_tmp, &s, get_threshold(&s) - DELTA_STEP_REMAIN,
+                                      sk));
             for (uint8_t i_N0 = 0; i_N0 < N0; i_N0++) {
                 array_or((uint8_t *)&x_collection.val[i_N0].raw, x_collection_tmp.val[i_N0].raw,
                          R_SIZE);
@@ -578,13 +588,32 @@ decode_pickyfix(OUT split_e_t       *e,
     uint32_t x_weight = r_bits_vector_weight((r_t *)x_collection.val[0].raw) +
                         r_bits_vector_weight((r_t *)x_collection.val[1].raw);
 
-    printf("\n需要求解的未知数个数: %u\n", x_weight);
+    // printf("\n需要求解的未知数个数: %u\n", x_weight);
+
+    // 检查是否进行未知数填充
+    if (X_COUNT_PAD == 1) {
+        // 填充未知数个数为固定值
+        uint32_t x_count_pad =
+            (X_COUNT_MIN - (r_bits_vector_weight((r_t *)x_collection.val[0].raw) +
+                            r_bits_vector_weight((r_t *)x_collection.val[1].raw))) /
+            8;
+
+        for (uint32_t i_x_count = 0; i_x_count < x_count_pad / 2 + 1; i_x_count++) {
+            x_collection.val[0].raw[i_x_count] = 255;
+            x_collection.val[1].raw[i_x_count] = 255;
+        }
+    }
+
+    x_weight = r_bits_vector_weight((r_t *)x_collection.val[0].raw) +
+                        r_bits_vector_weight((r_t *)x_collection.val[1].raw);
+
+    // printf("\n需要求解的未知数个数: %u\n", x_weight);
 
     // pickyfix 翻转的 e 的个数
-    uint32_t e_weight =
-        r_bits_vector_weight((r_t *)e->val[0].raw) + r_bits_vector_weight((r_t *)e->val[1].raw);
+    // uint32_t e_weight =
+    //     r_bits_vector_weight((r_t *)e->val[0].raw) + r_bits_vector_weight((r_t *)e->val[1].raw);
 
-    printf("\npickyfix 求解的 e 的个数: %u\n", e_weight);
+    // printf("\npickyfix 求解的 e 的个数: %u\n", e_weight);
 
     // ===========================↓进行方程组求解算法↓===============================
     ct_t       ct_pad            = {0};
@@ -599,7 +628,7 @@ decode_pickyfix(OUT split_e_t       *e,
         // 构造 sk 转置 sk_transpose
         // 获取 sk 转置的首行索引
         // 𝜑(A)' = a0 + ar-1X + ar-2X^2 ...
-        for (uint8_t i_DV = 0; i_DV < DV; i_DV++) {
+        for (uint32_t i_DV = 0; i_DV < DV; i_DV++) {
             if (sk->wlist[i].val[i_DV] != 0) {
                 sk_transpose.wlist[i].val[i_DV] = R_BITS - sk->wlist[i].val[i_DV];
             } else {
@@ -831,7 +860,7 @@ decode_pickyfix(OUT split_e_t       *e,
         if (consistency == -1) {
             printf("\nm4ri 未能找到一组解\n");
         } else {
-            printf("\nm4ri 成功找到一组解\n");
+            // printf("\nm4ri 成功找到一组解\n");
         }
 
         // 将结果从 B 中取出来
@@ -857,9 +886,9 @@ decode_pickyfix(OUT split_e_t       *e,
     // 还原 e
     split_e_t e_verify = {0};
     solving_equations_e(&e_verify, &ct_verify, b);
-    uint32_t e_verify_weight = r_bits_vector_weight((r_t *)e_verify.val[0].raw) +
-                               r_bits_vector_weight((r_t *)e_verify.val[1].raw);
-    printf("\n解方程还原的 e 的重量: %u\n", e_verify_weight);
+    // uint32_t e_verify_weight = r_bits_vector_weight((r_t *)e_verify.val[0].raw) +
+    //                            r_bits_vector_weight((r_t *)e_verify.val[1].raw);
+    // printf("\n解方程还原的 e 的重量: %u\n", e_verify_weight);
 
     // 利用还原的 e 计算 s
     syndrome_t s_verify = {0};
@@ -869,7 +898,7 @@ decode_pickyfix(OUT split_e_t       *e,
     if (r_bits_vector_weight((r_t *)s_verify.qw) > 0) {
         printf("\n解方程失败, 未能还原 e\n");
     } else {
-        printf("\n解方程成功, 成功还原 e\n");
+        // printf("\n解方程成功, 成功还原 e\n");
     }
 
     if (r_bits_vector_weight((r_t *)s.qw) > 0) {
@@ -880,7 +909,7 @@ decode_pickyfix(OUT split_e_t       *e,
         BIKE_ERROR(E_DECODING_FAILURE);
     }
 
-    printf("\npickyfix 译码成功, 成功还原 e\n");
+    // printf("\npickyfix 译码成功, 成功还原 e\n");
 
     return SUCCESS;
 }
